@@ -1,0 +1,2680 @@
+======================================================================
+STUDENT MANAGEMENT SYSTEM
+Complete Technical Documentation
+Generated: July 21, 2026
+======================================================================
+
+Total Documents: 30
+
+
+
+======================================================================
+SECTION 1: Documentation Overview
+Source: README.md
+======================================================================
+
+Student Management System — Individual File Documentation
+=========================================================
+
+This directory contains file-wise technical documentation for every source file in the project. Each document covers purpose, dependencies, state, key functions, data flow, and design notes for its corresponding file.
+
+
+📁 Structure
+============
+
+  docs/
+  ├── README.md                          ← This file
+  ├── pages/                             ← Frontend page components (14)
+  │   ├── LOGIN.md
+  │   ├── OTP.md
+  │   ├── CHANGEPASSWORD.md
+  │   ├── STUDENTLIST.md
+  │   ├── CREATESTUDENT.md
+  │   ├── UPDATESTUDENT.md
+  │   ├── STUDENTDETAILS.md
+  │   ├── PRINTSTUDENTID.md
+  │   ├── IMPORTSTUDENT.md
+  │   ├── IMPORTPREVIEW.md
+  │   ├── STATEMASTER.md
+  │   ├── CITYMASTER.md
+  │   ├── COURSEMASTER.md
+  │   └── USERMASTER.md
+  │
+  ├── components/                        ← Reusable UI components (3)
+  │   ├── DASHBOARD.md
+  │   ├── CAMERAMODAL.md
+  │   └── PIECHART.md
+  │
+  ├── core/                              ← Frontend core files (3)
+  │   ├── APP.md
+  │   ├── PROTECTEDROUTE.md
+  │   └── APILAYER.md
+  │
+  ├── routes/                            ← Backend API route files (4)
+  │   ├── AUTHROUTES.md
+  │   ├── USERSROUTES.md
+  │   ├── STUDENTSROUTES.md
+  │   └── MASTERSROUTES.md
+  │
+  └── server/                            ← Backend core files (5)
+      ├── SERVER.md
+      ├── DATABASE.md
+      ├── DBINIT.md
+      ├── AUTHMIDDLEWARE.md
+      └── MAILSERVICE.md
+
+
+📄 Document Count
+=================
+
+Category  |  Count
+
+Frontend Pages  |  14
+UI Components  |  3
+Frontend Core  |  3
+API Routes  |  4
+Server Core  |  5
+Total  |  29
+
+
+🔗 Quick Links
+==============
+
+Authentication Flow
+  • LOGIN.md — Login form with CAPTCHA and Forgot Password toggle
+  • OTP.md — OTP verification page
+  • CHANGEPASSWORD.md — Password change (voluntary & forced)
+  • PROTECTEDROUTE.md — Route guard and JWT validation
+  • AUTHROUTES.md — Backend auth endpoints
+  • AUTHMIDDLEWARE.md — JWT verification middleware
+
+Student Management
+  • STUDENTLIST.md — Paginated table with filters & pie charts
+  • CREATESTUDENT.md — Student registration form
+  • UPDATESTUDENT.md — Student edit form
+  • STUDENTDETAILS.md — Full profile + approval workflow
+  • PRINTSTUDENTID.md — Printable ID card with QR code
+  • STUDENTSROUTES.md — Backend student CRUD + approval + Excel
+
+Excel Import
+  • IMPORTSTUDENT.md — File upload page
+  • IMPORTPREVIEW.md — Preview & validate before import
+
+Master Data Management
+  • STATEMASTER.md — State CRUD
+  • CITYMASTER.md — City CRUD
+  • COURSEMASTER.md — Course CRUD
+  • USERMASTER.md — User management with RBAC
+  • MASTERSROUTES.md — Backend master data CRUD
+
+App Infrastructure
+  • APP.md — Root App with routing and navigation
+  • APILAYER.md — Axios client and endpoint functions
+  • DASHBOARD.md — Dashboard with stats and search
+  • CAMERAMODAL.md — Webcam capture modal
+  • PIECHART.md — CSS donut chart component
+
+Server Infrastructure
+  • SERVER.md — Express server configuration
+  • DATABASE.md — MSSQL connection pool
+  • DBINIT.md — Schema and seed data
+  • MAIL_SERVICE.md — Nodemailer email notifications
+
+
+
+======================================================================
+SECTION 2: Server Configuration
+Source: server/SERVER.md
+======================================================================
+
+SERVER — server/server.js
+=========================
+
+
+Purpose
+=======
+Main Express server entry point. Configures middleware, mounts API routes, starts the HTTP server, and initializes the database pool.
+
+
+Dependencies
+============
+Import  |  Usage
+
+express  |  Web framework
+cors  |  Cross-Origin Resource Sharing
+path  |  Resolve paths
+dotenv  |  Environment variable loading
+./db  |  Database pool initialization
+./routes/auth  |  Auth routes
+./routes/students  |  Student routes
+./routes/users  |  User management routes
+./routes/masters  |  Master data routes
+
+
+Middleware Setup
+================
+  app.use(cors());
+  app.use(express.json({ limit: "50mb" }));    // Large payload for Base64 photos
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+
+Route Mounting
+==============
+Route Prefix  |  Router File  |  Description
+
+/  |  routes/auth.js  |  Auth endpoints (login, verify-otp, forgot-password, change-password)
+/api  |  routes/students.js  |  Student CRUD, approval, Excel import/export
+/api  |  routes/users.js  |  User CRUD
+/api  |  routes/masters.js  |  States, Cities, Courses CRUD + dashboard stats
+/api  |  routes/auth.js  |  Forgot password and change password (under /api prefix)
+
+
+Environment Variables (.env)
+============================
+Variable  |  Default  |  Description
+
+PORT  |  5000  |  Server listening port
+JWTSECRET  |  —  |  Secret key for JWT signing
+DBSERVER  |  localhost  |  SQL Server host
+DBDATABASE  |  School  |  Database name
+DBUSER  |  —  |  SQL auth username
+DBPASSWORD  |  —  |  SQL auth password
+EMAILHOST  |  —  |  SMTP host
+EMAILPORT  |  —  |  SMTP port
+EMAILUSER  |  —  |  SMTP email
+EMAIL_PASS  |  —  |  SMTP password
+
+
+Server Start
+============
+  app.listen(PORT, () => {
+    console.log(Server running on port ${PORT});
+  });
+
+
+Design Notes
+============
+  • JSON body limit is set to 50MB to accommodate Base64-encoded photos.
+  • The server does not call dbInit.js automatically — it must be run separately to initialize the schema.
+  • All routes use the authenticate middleware except login, verify-otp, and forgot-password.
+  • CORS is enabled globally (sufficient for Vite proxy development setup).
+
+
+
+----------------------------------------------------------------------
+SECTION 3: Database Connection
+Source: server/DATABASE.md
+----------------------------------------------------------------------
+
+DATABASE CONNECTION — server/db.js
+==================================
+
+
+Purpose
+=======
+Database connection module using the mssql package with Windows Authentication. Manages a connection pool for all database operations.
+
+
+Dependencies
+============
+Import  |  Usage
+
+mssql  |  SQL Server driver and connection pool
+
+
+Configuration
+=============
+Reads from environment variables:
+Variable  |  Default  |  Description
+
+DBSERVER  |  localhost  |  SQL Server host
+DBDATABASE  |  School  |  Database name
+DBUSER  |  —  |  Username (for SQL auth)
+DBPASSWORD  |  —  |  Password (for SQL auth)
+DBDRIVER  |  msnodesqlv8  |  Driver (defaults to Windows Auth)
+DBPORT  |  1433  |  Port
+DBENCRYPT  |  true  |  Encryption setting
+DBTRUSTSERVERCERTIFICATE  |  true  |  Trust self-signed certs
+
+
+Exported Functions
+==================
+
+getPool()
+Returns a singleton connection pool. Creates the pool on first call and reuses it.
+
+Config example (Windows Auth):
+  {
+    server: process.env.DBSERVER || "localhost",
+    database: process.env.DBDATABASE || "School",
+    driver: "msnodesqlv8",
+    options: {
+      trustedConnection: true,
+      encrypt: true,
+      trustServerCertificate: true
+    }
+  }
+
+
+Usage Pattern
+=============
+  const { getPool } = require("../db");
+  const pool = await getPool();
+  const result = await pool.request()
+    .input("param1", sql.VarChar, value)
+    .query("SELECT * FROM Table WHERE col = @param1");
+
+
+Design Notes
+============
+  • Uses a singleton pool pattern — only one pool created per server instance.
+  • Supports both Windows Authentication (msnodesqlv8) and SQL Server Authentication.
+  • All route files import and use getPool() for database access.
+
+
+
+----------------------------------------------------------------------
+SECTION 4: Database Schema & Seed Data
+Source: server/DB_INIT.md
+----------------------------------------------------------------------
+
+DB INIT — server/dbInit.js
+==========================
+
+
+Purpose
+=======
+Database schema initialization and seeding script. Creates all required tables (Students, States, Cities, Courses, Users, studentdesired, studentflow, matrix) and inserts default seed data.
+
+
+Execution
+=========
+Run once to set up the database:
+  node server/dbInit.js
+
+
+Tables Created
+==============
+
+Users
+Column  |  Type  |  Notes
+
+Id  |  INT IDENTITY  |  Primary key
+Name  |  VARCHAR(100)  |  User's full name
+Email  |  VARCHAR(100)  |  Unique, used for login
+Password  |  VARCHAR(100)  |  Plain text
+Role  |  VARCHAR(50)  |  Headmaster, Teacher, or Student
+Phone  |  VARCHAR(20)  |  Optional
+ForcePassword  |  CHAR(1)  |  'Y' if password change required
+
+Students
+Column  |  Type  |  Notes
+
+Id  |  INT IDENTITY  |  Primary key
+Name  |  VARCHAR(100)
+Email  |  VARCHAR(100)  |  Unique
+Course  |  VARCHAR(100)
+Age  |  INT
+Mobile  |  VARCHAR(20)
+State  |  VARCHAR(100)
+City  |  VARCHAR(100)
+Photo  |  NVARCHAR(MAX)  |  Base64 encoded image
+createdBy  |  INT  |  FK → Users.Id
+createdDate  |  DATETIME  |  Default GETDATE()
+
+States
+Column  |  Type
+
+Id  |  INT IDENTITY
+Name  |  VARCHAR(100)
+
+Cities
+Column  |  Type
+
+Id  |  INT IDENTITY
+Name  |  VARCHAR(100)
+StateId  |  INT (FK → States.Id)
+
+Courses
+Column  |  Type
+
+Id  |  INT IDENTITY
+Name  |  VARCHAR(100)
+
+studentdesired
+Column  |  Type  |  Notes
+
+RequestId  |  INT IDENTITY  |  Primary key
+StudentId  |  INT  |  FK → Students.Id
+Status  |  CHAR(1)  |  'Y' or 'N'
+Level  |  INT  |  Current approval level
+CreatedBy  |  INT  |  FK → Users.Id
+
+studentflow
+Column  |  Type  |  Notes
+
+FlowId  |  INT IDENTITY  |  Primary key
+RequestId  |  INT  |  FK → studentdesired.RequestId
+AssignedUserId  |  INT  |  FK → Users.Id
+Decision  |  VARCHAR(20)  |  NULL, Approved, Rejected, Returned, Forward
+Remarks  |  VARCHAR(500)
+UpdatedAt  |  DATETIME
+
+matrix
+Column  |  Type
+
+Id  |  INT IDENTITY
+UserId  |  INT
+Level  |  INT
+StateId  |  INT (FK → States.Id)
+
+
+Seed Data
+=========
+
+Default User
+Field  |  Value
+
+Name  |  Vinay
+Email  |  vinay@example.com
+Password  |  Password@123
+Role  |  Headmaster
+ForcePassword  |  N
+
+Sample States
+Delhi, Maharashtra, Uttar Pradesh, Gujarat, Karnataka, Bihar, Tamil Nadu, Rajasthan
+
+Sample Cities
+New Delhi, Mumbai, Lucknow, Ahmedabad, Bengaluru, Patna, Chennai, Jaipur
+
+Sample Courses
+BCA, BBA, B.Tech, B.Com, BA, MBA, MCA, B.Sc
+
+
+Design Notes
+============
+  • All DDL statements use IF NOT EXISTS / IF OBJECTID(...) IS NULL guards for idempotency.
+  • The script can be run multiple times without errors.
+  • Sample data is for development/testing purposes.
+  • The matrix table is not seeded — approver assignments must be configured via the User Master or directly in the database.
+
+
+
+----------------------------------------------------------------------
+SECTION 5: Auth Middleware
+Source: server/AUTH_MIDDLEWARE.md
+----------------------------------------------------------------------
+
+AUTH MIDDLEWARE — server/middleware/auth.js
+===========================================
+
+
+Purpose
+=======
+JWT authentication middleware that protects all API routes (except login, verify-otp, forgot-password). Validates Bearer tokens, enforces password change requirement, and attaches user info to the request object.
+
+
+Dependencies
+============
+Import  |  Usage
+
+jsonwebtoken  |  jwt.verify() to decode and validate token
+
+
+Flow
+====
+  Request with Authorization: Bearer 
+           │
+           ▼
+     Header valid? ──❌──→ 401 "Unauthorized"
+           │✅
+           ▼
+     jwt.verify(token, JWTSECRET)
+           │
+       ┌───┴───┐
+       │       │
+       ▼       ▼
+     valid   invalid/expired
+       │       │
+       ▼       ▼
+    Set     401 "Invalid or
+    req.user   expired token"
+       │
+       ▼
+     Normalize role to uppercase
+       │
+       ▼
+     requiresPasswordChange &&    ──→ 403 "Password change required"
+     !path.endsWith('/change-password')
+       │
+       ▼
+     next()
+
+
+req.user Shape
+==============
+  {
+    id: number,
+    name: string,
+    email: string,
+    role: string,         // e.g., "HEADMASTER", "TEACHER", "STUDENT"
+    requiresPasswordChange: boolean,
+    iat: number,          // issued at
+    exp: number           // expiration
+  }
+
+
+Key Details
+===========
+  • Role is normalized to uppercase after verification.
+  • Old tokens without a role field get a fallback to "HEADMASTER".
+  • If requiresPasswordChange is true, all routes except /change-password are blocked with a 403.
+  • The JWTSECRET is read from process.env.JWT_SECRET.
+
+
+
+----------------------------------------------------------------------
+SECTION 6: Email Service
+Source: server/MAIL_SERVICE.md
+----------------------------------------------------------------------
+
+MAIL SERVICE — server/services/mailService.js
+=============================================
+
+
+Purpose
+=======
+Email notification service using Nodemailer. Sends 6 types of transactional emails: OTP verification, welcome email, temporary password, password change confirmation, pending approval notification, and new user credentials.
+
+
+Dependencies
+============
+Import  |  Usage
+
+nodemailer  |  SMTP email transport
+path  |  Resolve email template paths
+fs  |  Read HTML template files
+
+
+Configuration
+=============
+Reads SMTP credentials from environment variables:
+Variable  |  Description
+
+EMAILHOST  |  SMTP host (e.g., smtp.gmail.com)
+EMAILPORT  |  SMTP port (e.g., 587)
+EMAILUSER  |  SMTP username/email
+EMAILPASS  |  SMTP password/app password
+EMAILFROM  |  Sender address (defaults to EMAILUSER)
+
+
+Exported Function
+=================
+
+sendEmail({ to, subject, text, html })
+Generic email sender using Nodemailer.
+
+Param  |  Type  |  Required  |  Description
+
+to  |  string  |  ✅  |  Recipient email address
+subject  |  string  |  ✅  |  Email subject line
+text  |  string  |  ❌  |  Plain text body
+html  |  string  |  ❌  |  HTML body (preferred)
+
+
+Email Templates
+===============
+  1. OTP Email
+  • Trigger: Successful password login.
+  • Content: 6-digit OTP code.
+  • Template: otp.txt (from project root server/otp.txt).
+  2. Welcome Email
+  • Trigger: New student created via form.
+  • Content: Name, email, registration confirmation.
+  3. Temporary Password Email
+  • Trigger: Forgot password flow.
+  • Content: Temporary password and instructions to log in and change.
+  4. Password Change Confirmation
+  • Trigger: Successful password change.
+  • Content: Confirmation that password was updated.
+  5. Pending Approval Notification
+  • Trigger: New student created and assigned to an approver.
+  • Content: Student details and request to review.
+  6. New User Credentials
+  • Trigger: Admin creates a new user (via UserMaster).
+  • Content: Login credentials, role, and instructions.
+
+
+
+======================================================================
+SECTION 7: Auth API Routes
+Source: routes/AUTH_ROUTES.md
+======================================================================
+
+AUTH ROUTES — server/routes/auth.js
+===================================
+
+
+Purpose
+=======
+Authentication and password management endpoints. Handles login (password verification + OTP generation), OTP verification, forgot password (temp password email), and change password.
+
+
+Dependencies
+============
+Import  |  Usage
+
+express.Router  |  Route definitions
+jsonwebtoken  |  JWT creation and verification
+mssql  |  Database queries
+../db  |  getPool() for SQL connection
+../services/mailService  |  sendEmail() for OTP, temp password, password change emails
+fs  |  Read OTP template from otp.txt
+path  |  Resolve otp.txt path
+
+
+Endpoints
+=========
+
+POST /login
+Verifies email/password, generates OTP, sends OTP email.
+
+Request: { email, password }
+
+Flow:
+  1. Query Users table for email.
+  2. If not found → { success: false }.
+  3. Compare password (plain text — no hashing).
+  4. If wrong → { success: false }.
+  5. If ForcePassword = 'Y' → return JWT with requiresPasswordChange: true.
+  6. Generate 6-digit OTP (from Math.random()), store in memory otpStore map.
+  7. Send OTP email via mailService.sendEmail().
+  8. Return { success: true }.
+
+Response:
+  • Success: { success: true, requiresPasswordChange?: boolean, token?: string }
+  • Failure: { success: false }
+
+POST /verify-otp
+Validates OTP from memory store and issues JWT.
+
+Request: { email, otp }
+
+Flow:
+  1. Look up OTP in otpStore for email.
+  2. If missing → { success: false, error: "OTP not found" }.
+  3. If mismatch → { success: false, error: "Wrong OTP" }.
+  4. Delete OTP from store.
+  5. Query user again to get latest data.
+  6. Create JWT with { id, name, email, role, requiresPasswordChange }.
+  7. Return { success: true, token }.
+
+POST /api/forgot-password
+Generates a temporary password and emails it to the user.
+
+Request: { email }
+
+Flow:
+  1. Query user by email.
+  2. If not found → { success: false, error: "Email not registered" }.
+  3. Generate temporary password (8 chars: uppercase + 4 digits + uppercase).
+  4. Update Password and ForcePassword = 'Y' in DB.
+  5. Send email with temporary password.
+  6. Return { success: true, message }.
+
+POST /api/change-password
+Updates user password with complexity validation.
+
+Request: { oldPassword, newPassword } (headers: Authorization: Bearer )
+
+Flow:
+  1. Authenticate via middleware.
+  2. Verify old password matches current DB value.
+  3. Validate new password complexity (min 8 chars, uppercase, lowercase, digit, special).
+  4. Update password in DB, set ForcePassword = 'N'.
+  5. Send confirmation email.
+  6. Return { success: true }.
+
+
+In-Memory State
+===============
+  const otpStore = new Map(); // email -> 6-digit OTP string
+OTPs are stored in server memory (lost on restart). Each OTP can only be used once (deleted after successful verification).
+
+
+⚠️ Security Notes
+=================
+
+Passwords Stored in Plain Text
+Passwords are stored and compared as plain text — no hashing is performed. This is a known limitation and should be addressed for production use.
+
+OTP Store (In-Memory)
+  const otpStore = new Map(); // email → 6-digit OTP string
+  • OTPs are stored in server memory — lost on restart.
+  • OTPs are generated from Math.random() — not cryptographically secure.
+  • OTPs can only be used once (deleted after verification).
+  • No expiry mechanism — OTPs persist until used or server restart.
+
+JWT
+  • JWT secret comes from process.env.JWTSECRET.
+  • Tokens include { id, name, email, role, requiresPasswordChange }.
+  • Token expiration should be configured via expiresIn option.
+
+Password Change Flow
+  • Force_Password flag tracks whether user must change their password.
+  • API blocks all non-password-change routes when requiresPasswordChange is true (enforced in auth middleware).
+
+
+
+======================================================================
+SECTION 8: Students API Routes
+Source: routes/STUDENTS_ROUTES.md
+======================================================================
+
+STUDENTS ROUTES — server/routes/students.js
+===========================================
+
+
+Purpose
+=======
+Core student management endpoints: CRUD with photo handling, pagination with multi-filter, Excel import/export, approval workflow, and aggregate statistics.
+
+
+Dependencies
+============
+Import  |  Usage
+
+express.Router  |  Route definitions
+mssql  |  Database queries
+multer  |  Multipart file upload parsing (for photo + Excel)
+xlsx  |  Excel file parsing (preview)
+../db  |  getPool()
+../middleware/auth  |  JWT authentication
+../services/mailService  |  Welcome email, approval notifications
+
+
+Mount
+=====
+  router.use(authenticate); // Applied to all routes
+  app.use("/api", router);
+
+
+Endpoints
+=========
+
+GET /api/students
+Paginated student list with multi-filters.
+
+Query Params: page, limit, search, state, city, course
+
+Flow:
+  1. Builds dynamic SQL query with OFFSET/FETCH NEXT for pagination.
+  2. Applies filters via WHERE clauses with LIKE %search% for text search.
+  3. Uses OUTER APPLY to join latest approval status.
+  4. Returns { students: [...], total: number }.
+
+GET /api/students/aggregates
+Returns count of students grouped by state, city, and course for pie charts.
+
+Response: { states: [{label, count}], cities: [{label, count}], courses: [{label, count}] }
+
+GET /api/students/:id
+Full student details with approval metadata.
+
+Flow:
+  1. Queries student with LEFT JOIN on studentdesired and studentflow for latest decision.
+  2. Computes canApprove flag: checks if the requesting user is the assigned approver at the current pending level.
+  3. Returns full student object including photo (Base64), approval status, decision history.
+
+POST /api/students
+Creates a new student.
+
+Middleware: upload.single('photo') (multer)
+
+Request: FormData with name, email, course, age, mobile, state, city, photo (file)
+
+Flow:
+  1. Check for duplicate email → 400 "Student with this email already exists".
+  2. If photo uploaded, convert buffer to Base64 string.
+  3. Insert into Students table with OUTPUT INSERTED.*.
+  4. Send welcome email (error does not block creation).
+  5. Look up approval matrix for the student's state.
+  6. If approvers exist, create studentdesired + studentflow rows.
+  7. Return created student with { emailSent, emailError? }.
+
+PUT /api/students/:id
+Updates an existing student.
+
+Middleware: upload.single('photo') (multer)
+
+Request: FormData with updated fields + optional photo.
+
+Flow:
+  1. If photo uploaded, convert to Base64.
+  2. Update Students table.
+  3. Return { success: true }.
+
+DELETE /api/students/:id
+Deletes a student.
+
+Response: { success: true, message }
+
+POST /api/students/:id/approval
+Approval workflow action.
+
+Request: { decision: "Approved"|"Rejected"|"Returned"|"Forward", remarks, forwardUserId? }
+
+Flow:
+  1. Validate decision enum value.
+  2. Validate forwardUserId required for "Forward".
+  3. Check student exists and has a pending approval.
+  4. Verify the requesting user is the assigned approver.
+  5. If Forward: validate target user exists.
+  6. Update studentdesired and studentflow tables.
+  7. If Forward: create new flow entry for target user; if Approve: check next level; etc.
+  8. Send notification emails accordingly.
+
+GET /api/export/students/excel
+Exports all students as an XLSX file.
+
+Response: Binary XLSX file download.
+
+POST /api/upload/students/excel/preview
+Parses uploaded Excel, validates each row (duplicate check, missing email).
+
+Request: Multipart with file field.
+
+Response: { excelData: [{ Name, Email, Course, State, City, Mobile, Age, status }] }
+
+POST /api/upload/students/excel/import
+Bulk imports validated student records from parsed Excel data.
+
+Request: { students: [...] }
+
+Response: { imported: number, errors: [...] }
+
+
+Approval Workflow
+=================
+  Student Created → student_desired created → level 1 approver assigned
+    → Level 1: Approve/Reject/Return/Forward
+      → Forward: assign to specific user
+      → Return: back to level 1
+      → Reject: status updated
+      → Approve: check for next level
+        → Next level exists: promote to level 2
+        → No next level: final approval, status = "Approved"
+
+
+Design Notes
+============
+  • Photos stored as Base64 strings in the database.
+  • Multer configured with memory storage (no disk writes).
+  • Approval levels defined in matrix table (state-level → approver mapping).
+  • Email failures during student creation are non-blocking (student saved, email error reported).
+
+
+
+======================================================================
+SECTION 9: Users API Routes
+Source: routes/USERS_ROUTES.md
+======================================================================
+
+USERS ROUTES — server/routes/users.js
+=====================================
+
+
+Purpose
+=======
+User management CRUD endpoints. Supports creating, reading, updating, and deleting system users (Headmasters, Teachers, Students). Includes password reset triggers and role-based access control.
+
+
+Dependencies
+============
+Import  |  Usage
+
+express.Router  |  Route definitions
+mssql  |  Database queries
+../db  |  getPool()
+../middleware/auth  |  JWT authentication middleware
+../services/mailService  |  Welcome/password reset emails
+
+
+Mount
+=====
+  router.use(authenticate); // All routes require authentication
+  app.use("/api", router);
+
+
+Helper: getApproverForLevel(pool, level)
+========================================
+Queries the matrix table for the first user at a given approval level level. Used when creating new student users.
+
+
+Endpoints
+=========
+
+GET /api/users
+Returns all users. Note: TEACHER role can only see STUDENT users.
+
+Auth: All authenticated users.
+
+Query: Optional role filter.
+
+Response: Array of { Id, Name, Role, Email, Phone }
+
+POST /api/users
+Creates a new user, generates a random password, sends a welcome/reset email, and optionally creates an approval flow entry if the user is a Student.
+
+Request: { name, role, email, phone? }
+
+Flow:
+  1. Check if email already exists → 400 "Email already exists".
+  2. Insert into Users table.
+  3. Get the inserted user's ID.
+  4. Generate random password (8 chars).
+  5. Update password in DB, set ForcePassword = 'Y'.
+  6. Send welcome email with credentials.
+  7. If role is Student, creates a studentflow entry if an approver exists.
+
+Response: { success: true, message, user: { id, name, role, email } }
+
+PUT /api/users/:id
+Updates user details (name, role, email, phone). Cannot change own role.
+
+Request: { name, role, email, phone? }
+
+Response: { success: true, message }
+
+DELETE /api/users/:id
+Deletes a user. Self-deletion is blocked at the backend.
+
+Response: { success: true, message }
+
+
+RBAC Notes
+==========
+  • The frontend UserMaster.jsx handles role-based visibility for Edit/Delete buttons.
+  • Backend does not enforce role-based restrictions on these endpoints (all authenticated users can manage users).
+  • However, self-deletion is prevented server-side.
+
+
+
+======================================================================
+SECTION 10: Masters API Routes
+Source: routes/MASTERS_ROUTES.md
+======================================================================
+
+MASTERS ROUTES — server/routes/masters.js
+=========================================
+
+
+Purpose
+=======
+CRUD endpoints for all master data entities: States, Cities, Courses, and Dashboard statistics. Used by the master management pages and filter dropdowns throughout the app.
+
+
+Dependencies
+============
+Import  |  Usage
+
+express.Router  |  Route definitions
+mssql  |  Database queries
+../db  |  getPool()
+../middleware/auth  |  JWT authentication middleware
+
+
+Mount
+=====
+  router.use(authenticate); // All routes require authentication
+  app.use("/api", router);
+
+
+Endpoints — States
+==================
+
+GET /api/states
+Returns all states.
+
+Response: Array of { id, name }
+
+POST /api/states
+Creates a new state.
+
+Request: { name }
+
+PUT /api/states/:id
+Updates a state name.
+
+Request: { name }
+
+DELETE /api/states/:id
+Deletes a state. Cities under this state may also be deleted (cascading).
+
+
+Endpoints — Cities
+==================
+
+GET /api/cities
+Returns cities with optional state filter.
+
+Query Params: stateId (optional — if omitted, returns all cities)
+
+Response: Array of { id, name, stateId, stateName } (joined with States table)
+
+POST /api/cities
+Creates a new city linked to a state.
+
+Request: { name, stateId }
+
+PUT /api/cities/:id
+Updates city name and/or state link.
+
+Request: { name, stateId }
+
+DELETE /api/cities/:id
+Deletes a city. May fail if linked to existing students.
+
+
+Endpoints — Courses
+===================
+
+GET /api/courses
+Returns all courses.
+
+Response: Array of { id, name }
+
+POST /api/courses
+Creates a new course.
+
+Request: { name }
+
+PUT /api/courses/:id
+Updates a course name.
+
+Request: { name }
+
+DELETE /api/courses/:id
+Deletes a course. May fail if linked to existing students.
+
+
+Endpoints — Dashboard
+=====================
+
+GET /api/dashboard/stats
+Returns aggregate counts for the dashboard display.
+
+Response:
+  {
+    "students": 150,
+    "users": 25,
+    "states": 10,
+    "cities": 45,
+    "courses": 8
+  }
+
+
+Design Notes
+============
+  • All master data endpoints are simple CRUD with no complex business logic.
+  • Deleting a master record that is referenced by students will fail (foreign key constraint).
+  • State ID is passed as a query parameter for city filtering.
+
+
+
+======================================================================
+SECTION 11: App Component & Routing
+Source: core/APP.md
+======================================================================
+
+APP — src/App.jsx
+=================
+
+
+Purpose
+=======
+Root React component that configures routing, global authentication state, navigation header with role-based menus, and user dropdown (profile info, role, logout).
+
+
+Dependencies
+============
+Import  |  Usage
+
+react-router-dom  |  Routes, Route, Link, Navigate, useLocation, useNavigate
+react  |  useState, useEffect
+All page components  |  Route rendering
+ProtectedRoute  |  Auth guard wrapper
+./App.css  |  Custom app styles
+bootstrap/dist/css/bootstrap.min.css  |  Base styling
+
+
+State
+=====
+Variable  |  Type  |  Default  |  Description
+
+isLoggedIn  |  boolean  |  isTokenValid()  |  Reactive auth state
+mustChange  |  boolean  |  derived  |  Whether user has requiresPasswordChange flag
+showDropdown  |  boolean  |  false  |  User dropdown menu visibility
+
+
+Derived State
+=============
+Variable  |  Source  |  Description
+
+userRole  |  JWT payload role  |  Controls menu visibility
+userName  |  JWT payload name  |  Displayed in avatar/badge
+userEmail  |  JWT payload email  |  Displayed in dropdown
+studentCount  |  getDashboardStats API (via custom event)  |  Badge showing total student count
+
+
+Route Map
+=========
+Path  |  Component  |  Protected  |  Notes
+
+/  |  Login  |  ❌  |  Public entry
+/otp  |  Otp  |  ❌  |  After password validation
+/change-password  |  ChangePassword  |  ✅  |  Also accessible with forced flag
+/dashboard  |  Dashboard  |  ✅  |  Main hub after login
+/read  |  StudentList  |  ✅  |  Student table
+/create  |  CreateStudent  |  ✅  |  Registration form
+/update/:id  |  UpdateStudent  |  ✅  |  Edit form
+/student-details/:id  |  StudentDetails  |  ✅  |  Profile + approval
+/print-student/:id  |  PrintStudentId  |  ✅  |  ID card (no header)
+/import  |  ImportStudent  |  ✅  |  Excel upload
+/import-preview  |  ImportPreview  |  ✅  |  Preview before import
+/state  |  StateMaster  |  ✅  |  State CRUD
+/city  |  CityMaster  |  ✅  |  City CRUD
+/course  |  CourseMaster  |  ✅  |  Course CRUD
+/users  |  UserMaster  |  ✅  |  User management
+
+
+Key Functions
+=============
+
+isTokenValid()
+Checks localStorage for a JWT and verifies exp is not expired.
+
+requiresPasswordChange()
+Parses JWT and returns payload.requiresPasswordChange.
+
+onLogin()
+Updates isLoggedIn state and reloads student count.
+
+handleLogout()
+Clears localStorage and reloads the page.
+
+
+Navigation Header
+=================
+  • Left: Brand logo + navigation links based on role.
+  • Right: User avatar/name dropdown with profile info, role badge, and Logout.
+  • Student count badge next to "Students" link, updated via studentCountChanged window event.
+
+
+Related Docs
+============
+  • PROTECTEDROUTE.md — Route guard component
+  • APILAYER.md — Axios client and endpoint functions
+  • DASHBOARD.md — Main dashboard after login
+  • All pages — Individual page documentation
+  • STUDENTS_ROUTES.md — Backend API endpoints
+
+
+Shared CSS Classes
+==================
+Component-level styles are defined in src/App.css and src/index.css. Key shared classes:
+
+Class  |  Purpose  |  Used By
+
+.form-wrapper  |  Centered flex container  |  Login, ChangePassword, CreateStudent, UpdateStudent
+.form-card  |  White card with shadow  |  All form-based pages
+.form-header  |  Dark header section  |  All form-based pages
+.avatar-circle  |  Icon/emoji circle in header  |  All form-based pages
+.btn-submit  |  Primary submit button  |  All form-based pages
+
+
+Design Notes
+============
+  • Print page (/print-student/:id) hides the navigation header.
+  • ProtectedRoute redirects to / (login) if not authenticated.
+  • If mustChange is true, all routes except /change-password are blocked.
+  • The student count is fetched from dashboard stats and re-fetched on studentCountChanged event.
+
+
+
+----------------------------------------------------------------------
+SECTION 12: Protected Route
+Source: core/PROTECTED_ROUTE.md
+----------------------------------------------------------------------
+
+PROTECTED ROUTE — src/ProtectedRoute.jsx
+========================================
+
+
+Purpose
+=======
+Route guard component that wraps pages requiring authentication. Redirects unauthenticated users to the login page and handles the forced password change flow.
+
+
+Dependencies
+============
+Import  |  Usage
+
+react-router-dom  |  Navigate, useLocation
+
+
+Props
+=====
+Prop  |  Type  |  Description
+
+children  |  ReactNode  |  The protected component to render
+
+
+Key Functions
+=============
+
+Token Validation
+  1. Reads JWT from localStorage.getItem('token').
+  2. If no token → redirects to / (login) with current path saved in sessionStorage.redirectAfterLogin.
+  3. Decodes JWT payload (JSON.parse(atob(token.split('.')[1]))).
+  4. Checks exp * 1000 > Date.now().
+
+Password Change Guard
+If payload.requiresPasswordChange is true, redirects to /change-password for all routes except /change-password itself.
+
+
+Flow
+====
+  User navigates to protected route
+           │
+           ▼
+     Token in localStorage?
+        ┌──┴──┐
+        NO    YES
+        │      │
+        ▼     ▼
+     Save     Token expired?
+     current   ┌──┴──┐
+     path     YES    NO
+     in       │      │
+     session  ▼     ▼
+     Storage  /    requiresPasswordChange?
+           (login)  ┌──┴──┐
+                    YES    NO
+                    │      │
+                    ▼     ▼
+                /change-  Render
+                password  children
+
+
+Design Notes
+============
+  • After login, the user is redirected to the page they originally tried to access (stored in sessionStorage.redirectAfterLogin).
+  • The token expiration check prevents using stale JWTs.
+
+
+
+----------------------------------------------------------------------
+SECTION 13: API Layer
+Source: core/API_LAYER.md
+----------------------------------------------------------------------
+
+API LAYER — src/api.jsx
+=======================
+
+
+Purpose
+=======
+Centralized Axios client configuration and endpoint functions. All API calls in the frontend go through this module. Handles JWT injection, 401 interception, and provides named export functions for every backend endpoint.
+
+
+Axios Instance
+==============
+  const api = axios.create({ baseURL: '/api' });
+  • Uses relative URL /api which is proxied by Vite to localhost:5000 during development.
+  • With server/routes/index.js, the backend remaps /api routes.
+
+
+Interceptors
+============
+
+Request Interceptor
+Attaches Authorization: Bearer  header from localStorage to every request.
+
+Response Interceptor
+On 401 response, clears localStorage token and reloads the page (which redirects to login via ProtectedRoute logic).
+
+
+Exported Functions
+==================
+
+Student Endpoints
+Function  |  Method  |  Path  |  Description
+
+getStudent(id)  |  GET  |  /students/:id  |  Single student details
+createStudent(data)  |  POST  |  /students  |  Create new student (FormData)
+updateStudent(id, data)  |  PUT  |  /students/:id  |  Update student (FormData)
+deleteStudent(id)  |  DELETE  |  /students/:id  |  Delete student
+getStudents(page, limit, search, state, city, course)  |  GET  |  /students  |  Paginated list with filters
+getStudentsAggregates()  |  GET  |  /students/aggregates  |  State/City/Course counts
+approveStudent(id, data)  |  POST  |  /students/:id/approval  |  Submit approval decision
+
+Excel Import/Export
+Function  |  Method  |  Path  |  Description
+
+exportStudentsExcel()  |  GET  |  /export/students/excel  |  Download XLSX (responseType: 'blob')
+previewStudentsExcel(formData)  |  POST  |  /upload/students/excel/preview  |  Parse and validate Excel
+importStudentsBulk(students)  |  POST  |  /upload/students/excel/import  |  Bulk insert valid records
+
+Master Data — States
+Function  |  Method  |  Path
+
+getStates()  |  GET  |  /states
+createState(data)  |  POST  |  /states
+updateState(id, data)  |  PUT  |  /states/:id
+deleteState(id)  |  DELETE  |  /states/:id
+
+Master Data — Cities
+Function  |  Method  |  Path
+
+getCities(stateId?)  |  GET  |  /cities?stateId=
+createCity(data)  |  POST  |  /cities
+updateCity(id, data)  |  PUT  |  /cities/:id
+deleteCity(id)  |  DELETE  |  /cities/:id
+
+Master Data — Courses
+Function  |  Method  |  Path
+
+getCourses()  |  GET  |  /courses
+createCourse(data)  |  POST  |  /courses
+updateCourse(id, data)  |  PUT  |  /courses/:id
+deleteCourse(id)  |  DELETE  |  /courses/:id
+
+Dashboard & Users
+Function  |  Method  |  Path
+
+getDashboardStats()  |  GET  |  /dashboard/stats
+getUsers()  |  GET  |  /users
+createUser(data)  |  POST  |  /users
+updateUser(id, data)  |  PUT  |  /users/:id
+deleteUser(id)  |  DELETE  |  /users/:id
+
+
+Design Notes
+============
+  • All student CRUD functions use the api instance, which automatically attaches the JWT.
+  • File uploads (createStudent, updateStudent, previewStudentsExcel) explicitly set Content-Type: multipart/form-data.
+  • Export function returns a blob for file download via temporary anchor element.
+  • No error handling here — errors propagate to calling components.
+
+
+
+======================================================================
+SECTION 14: Dashboard Component
+Source: components/DASHBOARD.md
+======================================================================
+
+DASHBOARD — src/components/dasboad.jsx
+======================================
+
+
+Purpose
+=======
+Dashboard page showing system stats with a search bar, stat cards, and navigation shortcuts. The central hub after login.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getDashboardStats
+sweetalert2  |  Logout confirmation
+react-router-dom  |  useNavigate, useSearchParams
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+searchQuery  |  string  |  from URL ?search=  |  Global search text
+stats  |  object  |  {}  |  Dashboard statistics from API
+
+
+Key Features
+============
+
+Stat Cards
+  • Total Students (👨‍🎓) — displayed with count
+  • Total Users (👥) — displayed with count
+  • Additional cards as returned by API
+
+Search Bar
+  • Input field at the top of the dashboard.
+  • On submit, navigates to /read?search=.
+  • Pre-populated from URL ?search= param.
+
+Navigation Cards
+Each card links to a different section of the app:
+  • 📋 Student List → /read
+  • ➕ Add Student → /create
+  • 📥 Import Excel → /import
+  • 🗺️ State Master → /state
+  • 🏙️ City Master → /city
+  • 📘 Course Master → /course
+  • 👥 User Master → /users
+
+Logout
+Clears JWT from localStorage and reloads the page (redirects to login via ProtectedRoute logic).
+
+
+Menu Items
+==========
+Item  |  Route  |  Icon
+
+Student List  |  /read  |  📋
+Add Student  |  /create  |  ➕
+Student Details  |  /details  |  👤
+Import Excel  |  /import  |  📥
+Export Excel  |  (via StudentList)  |  📤
+State Master  |  /state  |  🗺️
+City Master  |  /city  |  🏙️
+Course Master  |  /course  |  📘
+Users Master  |  /users  |  👥
+
+
+Design Notes
+============
+  • Uses a grid layout with stat summary cards at top.
+  • Clickable menu cards with hover effects.
+  • Search bar updates URL params, which StudentList reads.
+
+
+
+----------------------------------------------------------------------
+SECTION 15: Camera Modal Component
+Source: components/CAMERA_MODAL.md
+----------------------------------------------------------------------
+
+CAMERA MODAL — src/components/CameraModal.jsx
+=============================================
+
+
+Purpose
+=======
+A Bootstrap modal that captures a photo using the device's webcam. Uses the native MediaDevices.getUserMedia API to access the camera, captures a snapshot, and returns it as a File object.
+
+
+Dependencies
+============
+Import  |  Usage
+
+React useRef  |  Video element reference for canvas capture
+bootstrap  |  Modal via data-bs-* attributes or manual control
+bootstrap/dist/css/bootstrap.min.css  |  Styling
+
+
+Props
+=====
+Prop  |  Type  |  Description
+
+isOpen  |  boolean  |  Controls modal visibility
+onClose  |  function  |  Callback to close the modal
+onCapture  |  function  |  Callback receiving the captured File object
+
+
+Key Functions
+=============
+
+Camera Access
+Uses navigator.mediaDevices.getUserMedia({ video: true }) to stream webcam to a  element.
+
+Capture
+Draws the current video frame onto a  element, converts to JPEG blob via canvas.toBlob(), creates a File object named camera-photo.jpg, and calls onCapture(file).
+
+Cleanup
+On close/unmount, stops all media tracks using stream.getTracks().forEach(track => track.stop()).
+
+
+Flow
+====
+  User clicks "Camera" button
+    → Modal opens
+    → Browser requests camera permission
+    → Webcam stream displayed in 
+    → User clicks "Capture"
+    → Snapshot taken via canvas
+    → File object returned to parent
+    → Modal closes
+
+
+Design Notes
+============
+  • The modal includes a live video preview and a "Capture" button.
+  • After capture, the modal auto-closes and the parent component receives the file.
+  • Camera stream is properly released on modal close to free the device.
+
+
+
+----------------------------------------------------------------------
+SECTION 16: Pie Chart Component
+Source: components/PIE_CHART.md
+----------------------------------------------------------------------
+
+PIE CHART — src/components/PieChart.jsx
+=======================================
+
+
+Purpose
+=======
+A pure CSS donut chart component using conic-gradient to visualize student distribution by State, City, or Course. Supports interactive segment clicking for filtering.
+
+
+Props
+=====
+Prop  |  Type  |  Default  |  Description
+
+title  |  string  |  ""  |  Chart title displayed in header
+data  |  array  |  []  |  Array of { label, count } objects
+headerColor  |  string  |  "#6366f1"  |  Header background color
+unit  |  string  |  "Items"  |  Label for the center unit text
+onSelect  |  function  |  —  |  Callback with (label) when a segment is clicked
+onReset  |  function  |  —  |  Callback when center "All" area is clicked
+
+
+Key Features
+============
+
+Donut Chart Rendering
+  • Computes conic-gradient string from data proportions.
+  • Each segment gets a color from a predefined palette.
+  • CSS border-radius: 50% creates the donut shape.
+  • Center hole displays total count + unit label.
+
+Interactive Segments
+  • Each segment label is clickable.
+  • Clicking a segment calls onSelect(label).
+  • Clicking the center "All" area calls onReset().
+
+Legend
+  • Below the chart, a legend shows each label with its color swatch and count.
+  • Legend items are also clickable for selection.
+
+
+Color Palette
+=============
+  #6366f1, #f97316, #ec4899, #10b981, #f59e0b,
+  #3b82f6, #ef4444, #8b5cf6, #14b8a6, #f43f5e,
+  #0ea5e9, #84cc16, #eab308, #a855f7, #06b6d4
+
+
+Design Notes
+============
+  • Reusable component used 3 times in StudentList (by State, City, Course).
+  • When a segment is selected (from StudentList), the outer filter dropdown is also set.
+  • Pure CSS — no canvas or SVG dependencies.
+  • The center shows "Total: X" with the unit name below.
+
+
+
+======================================================================
+SECTION 17: Login Page
+Source: pages/LOGIN.md
+======================================================================
+
+LOGIN — src/pages/login.jsx
+===========================
+
+
+Purpose
+=======
+User authentication entry point with email/password login, CAPTCHA verification, OTP redirection, and a Forgot Password toggle. It is the landing page for unauthenticated users.
+
+
+Dependencies
+============
+Import  |  Usage
+
+axios  |  POST requests to /login and /api/forgot-password
+react-simple-captcha  |  CAPTCHA generation and validation (loadCaptchaEnginge, LoadCanvasTemplateNoReload, validateCaptcha)
+react-router-dom  |  useNavigate for programmatic redirect
+bootstrap/dist/css/bootstrap.min.css  |  Styling
+
+
+Props
+=====
+Prop  |  Type  |  Description
+
+onLogin  |  function  |  Callback invoked after successful OTP verification or when a forced password-change token is stored
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+email  |  string  |  ""  |  Login email input
+password  |  string  |  ""  |  Login password input
+error  |  string  |  ""  |  Error message displayed in a danger alert
+loading  |  boolean  |  false  |  Disables form during request
+captchaInput  |  string  |  ""  |  User-entered CAPTCHA text
+forgotMode  |  boolean  |  false  |  Toggles between Login form and Forgot Password form
+forgotEmail  |  string  |  ""  |  Email input for forgot-password flow
+forgotSuccess  |  string  |  ""  |  Success message for forgot-password flow
+showPassword  |  boolean  |  false  |  Toggles password visibility
+
+
+Key Functions
+=============
+
+handleLogin()
+  1. Validates CAPTCHA; regenerates on failure.
+  2. POSTs { email, password } to /login.
+  3. On success:
+  • If requiresPasswordChange is true → stores JWT in localStorage, calls onLogin(), navigates to /change-password.
+  • Otherwise → navigates to /otp with { state: { email } }.
+  4. On failure → displays error and regenerates CAPTCHA.
+
+handleForgotPassword()
+  1. Validates email is non-empty.
+  2. POSTs { email } to /api/forgot-password.
+  3. On success → displays success message and clears email input.
+
+
+Flow Diagram
+============
+  User enters email + password + CAPTCHA
+           │
+           ▼
+     Validate CAPTCHA ──❌──→ Refresh CAPTCHA + show error
+           │✅
+           ▼
+     POST /login
+           │
+       ┌───┴───┐
+       │       │
+       ▼       ▼
+   token?   success
+       │       │
+       ▼       ▼
+   ForcePwd   OTP page
+       │       │
+       ▼       ▼
+   /change   /otp
+  -password
+
+
+RBAC
+====
+No authentication required — this is a public page.
+
+
+Related Docs
+============
+  • OTP.md — Navigated to after successful password validation
+  • CHANGEPASSWORD.md — Navigated to when forced password change required
+  • AUTH_ROUTES.md — Backend /login and /api/forgot-password endpoints
+
+
+Design Notes
+============
+  • Uses a custom form card with a dark header and avatar circle.
+  • CAPTCHA uses canvas-rendered text via LoadCanvasTemplateNoReload.
+  • Forgot Password mode shares the same card layout.
+  • Enter key triggers form submission.
+
+
+
+----------------------------------------------------------------------
+SECTION 18: OTP Verification Page
+Source: pages/OTP.md
+----------------------------------------------------------------------
+
+OTP — src/pages/Otp.jsx
+=======================
+
+
+Purpose
+=======
+One-Time Password verification page shown after a successful password login. User enters the 6-digit OTP emailed to them to complete authentication and receive a JWT.
+
+
+Dependencies
+============
+Import  |  Usage
+
+axios  |  POST /verify-otp
+react-router-dom  |  useLocation (receives email from Login), useNavigate
+
+
+Props
+=====
+Prop  |  Type  |  Description
+
+onLogin  |  function  |  Callback invoked after successful OTP verification
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+otp  |  string  |  ""  |  6-digit OTP input, maxLength=6
+
+
+Key Functions
+=============
+
+verifyOtp()
+  1. POSTs { email, otp } to /verify-otp.
+  2. On success:
+  • Stores JWT in localStorage.
+  • Calls onLogin() callback.
+  • Checks sessionStorage.redirectAfterLogin for post-login redirect; removes it after reading.
+  • Navigates to redirect target or default /read.
+  3. On failure → shows alert("Wrong OTP").
+  4. On network error → shows alert("OTP Verification Failed").
+
+
+Flow
+====
+  Login success (password valid)
+           │
+           ▼
+     Navigate to /otp (email in location.state)
+           │
+           ▼
+     User enters 6-digit OTP
+           │
+           ▼
+     POST /verify-otp { email, otp }
+           │
+       ┌───┴───┐
+       │       │
+       ▼       ▼
+     success  fail
+       │       │
+       ▼       ▼
+    JWT →    alert
+    /read
+
+
+Related Docs
+============
+  • LOGIN.md — Navigates here after successful password validation
+  • AUTH_ROUTES.md — Backend /verify-otp endpoint
+
+
+Design Notes
+============
+  • Email field is disabled/read-only — displayed for confirmation.
+  • Uses a clean card layout matching the login page design.
+  • No countdown timer or auto-resend functionality in current implementation.
+
+
+
+----------------------------------------------------------------------
+SECTION 19: Change Password Page
+Source: pages/CHANGE_PASSWORD.md
+----------------------------------------------------------------------
+
+CHANGE PASSWORD — src/pages/ChangePassword.jsx
+==============================================
+
+
+Purpose
+=======
+Password update page. Supports both voluntary password changes and forced resets when a user logs in with a temporary password (requiresPasswordChange flag in JWT).
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api (instance)  |  POST /change-password
+sweetalert2  |  Success/error modals
+react-router-dom  |  useNavigate
+bootstrap/dist/css/bootstrap.min.css  |  Styling
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+oldPassword  |  string  |  ""  |  Current/temporary password
+newPassword  |  string  |  ""  |  Desired new password
+confirmPassword  |  string  |  ""  |  Confirmation of new password
+showOldPassword  |  boolean  |  false  |  Toggle old password visibility
+showNewPassword  |  boolean  |  false  |  Toggle new password visibility
+showConfirmPassword  |  boolean  |  false  |  Toggle confirm password visibility
+error  |  string  |  ""  |  Validation/API error
+loading  |  boolean  |  false  |  Disables form during request
+
+
+Key Functions
+=============
+
+handleChangePassword(e)
+  1. Validates all fields are non-empty.
+  2. Validates newPassword.length >= 8.
+  3. Validates password complexity (uppercase, lowercase, digit, special character).
+  4. Checks new password !== old password.
+  5. Checks new password === confirmPassword.
+  6. POSTs { oldPassword, newPassword } to /change-password.
+  7. On success:
+  • Shows SweetAlert2 success.
+  • If isForced: clears token, redirects to / (login).
+  • Otherwise: navigates to /read.
+
+
+Derived State
+=============
+Variable  |  Source  |  Description
+
+isForced  |  JWT payload requiresPasswordChange  |  If true, user must change temp password before accessing any other page
+
+
+Validation Rules
+================
+Rule  |  Error Message
+
+Any field empty  |  "All fields are required."
+New password < 8 chars  |  "New password must be at least 8 characters long."
+Missing uppercase, lowercase, digit, or special char  |  Explicit per-criteria message
+New password === old password  |  "New password cannot be the same as your old/temporary password."
+Confirm mismatch  |  "New passwords do not match."
+
+
+Design Notes
+============
+  • Header text and field labels change dynamically based on isForced (e.g., "Old / Temporary Password").
+  • Success modal redirects differently for forced vs voluntary changes.
+
+
+
+======================================================================
+SECTION 20: Student List Page
+Source: pages/STUDENT_LIST.md
+======================================================================
+
+STUDENT LIST — src/pages/StudentList.jsx
+========================================
+
+
+Purpose
+=======
+Main data table page for browsing, filtering, exporting, and managing student records. Displays 3 pie charts (State/City/Course aggregates) at the top, followed by a filterable table with pagination and action buttons (Print ID, Update, Delete).
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getStudents, deleteStudent, exportStudentsExcel, getStates, getCities, getCourses, getStudentsAggregates
+../components/PieChart  |  Interactive conic-gradient donut charts
+sweetalert2  |  Delete confirmation, export success modals
+react-router-dom  |  useNavigate, useSearchParams
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+students  |  array  |  []  |  Paginated student records
+page  |  number  |  1  |  Current page number
+total  |  number  |  0  |  Total matching records
+states / cities / courses  |  array  |  []  |  Filter dropdown options
+selectedState / selectedCity / selectedCourse  |  string  |  ""  |  Active filter values
+aggregates  |  object  |  {states,cities,courses}  |  Pie chart data from API
+filterEnteredByMe  |  boolean  |  false  |  Show only students created by current user
+filterPendingDetails  |  boolean  |  false  |  Show only pending/forwarded/returned students
+
+
+Derived State
+=============
+Variable  |  Source  |  Description
+
+searchQuery  |  URL ?search= param  |  Global search text
+userRole  |  JWT payload.role  |  Controls visibility of Import/Update/Delete buttons
+currentUserId  |  JWT payload.id  |  Used for "Entered by me" filter
+totalPages  |  Math.ceil(total / limit)  |  Calculated for pagination
+limit  |  const 10  |  Items per page
+
+
+Key Functions
+=============
+
+fetchStudents(pageNumber, query, state, city, course)
+Fetches paginated student list from API with filter params.
+
+handleExportExcel()
+Calls exportStudentsExcel() to download an XLSX blob.
+
+handleDelete(id)
+Shows SweetAlert2 confirmation → calls deleteStudent(id) → refreshes list.
+
+handleUpdate(id)
+Navigates to /update/:id with student data in location state.
+
+printStudent(student)
+Opens /print-student/:id in a new popup window for ID card printing.
+
+
+Filter Tabs
+===========
+Tab  |  CSS Class  |  Description
+
+All Students  |  btn-outline-primary active  |  No filter
+Enterby me  |  btn-outline-primary  |  Filters by createdBy === currentUserId
+Pending details  |  btn-outline-warning  |  Filters by pending/forwarded/returned/null status
+
+
+Column Sets
+===========
+The table renders two different column layouts depending on active filter:
+
+Default / Enterby me: S.No, Student ID, Name, Email, Course, State, City, Mobile, Age, Action (Print ID, Update, Delete)
+
+Pending details: S.No, Student ID, Name, Course, Status, Action (Details button)
+
+
+Related Docs
+============
+  • CREATESTUDENT.md — Navigated to via "Add New" button (in Dashboard)
+  • UPDATESTUDENT.md — Navigated to via Update action
+  • STUDENTDETAILS.md — Navigated to via Details button
+  • PRINTSTUDENTID.md — ID card printing
+  • IMPORTSTUDENT.md — Excel import flow
+  • PIECHART.md — Aggregate chart component
+  • STUDENTSROUTES.md — Backend endpoints
+
+
+Design Notes
+============
+  • Pie charts allow interactive filtering: clicking a slice sets that filter value and resets others.
+  • Export Excel downloads via Blob + temporary  tag.
+  • Pagination buttons at bottom with "Page X of Y" display.
+  • studentCountChanged custom event dispatched on delete for header badge updates.
+
+
+
+----------------------------------------------------------------------
+SECTION 21: Create Student Page
+Source: pages/CREATE_STUDENT.md
+----------------------------------------------------------------------
+
+CREATE STUDENT — src/pages/CreateStudent.jsx
+============================================
+
+
+Purpose
+=======
+Student registration form with cascading State/City dropdowns, course selection, photo capture/upload, and full client-side validation.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  createStudent, getStates, getCities, getCourses
+../components/CameraModal  |  Webcam photo capture modal
+sweetalert2  |  Validation errors, confirm dialogs, success messages
+react-router-dom  |  useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+form  |  object  |  {name, email, course, age, mobile, state, city}  |  Form field values
+states  |  array  |  []  |  State dropdown options
+cities  |  array  |  []  |  City dropdown options (filtered by selected state)
+courses  |  array  |  []  |  Course dropdown options
+photo  |  File/null  |  null  |  Selected photo file object
+isCameraOpen  |  boolean  |  false  |  Camera modal visibility
+
+
+Key Functions
+=============
+
+handleStateChange(e)
+Updates selected state, resets city selection, and fetches cities for the chosen state from API.
+
+handleChange(e)
+Generic handler for text/select inputs using e.target.name.
+
+handleSubmit(e)
+  1. Validates all fields client-side.
+  2. Shows SweetAlert2 confirmation dialog.
+  3. Builds FormData with all form fields + optional photo.
+  4. POSTs to createStudent(payload).
+  5. On success: shows appropriate success/warning alert based on emailSent flag.
+  6. Navigates to /read.
+
+
+Validation Rules
+================
+Field  |  Rule
+
+Name  |  Non-empty
+Email  |  Must match /\S+@\S+\.\S+/
+State  |  Non-empty
+City  |  Non-empty
+Course  |  Non-empty
+Mobile  |  Exactly 10 digits /^[0-9]{10}$/
+Age  |  Must be between 10 and 100
+Photo  |  Required (non-null)
+
+
+Data Flow
+=========
+  Component mounts
+    → Fetch states + courses in parallel
+    → User selects state
+      → Fetch cities for that state
+    → User fills form + selects photo (file or camera)
+    → Submit: FormData → POST /api/students
+    → Backend: insert student, send welcome email, create approval flow
+    → Frontend: show result → navigate to /read
+
+
+Related Docs
+============
+  • UPDATESTUDENT.md — Edit form with same layout
+  • CAMERAMODAL.md — Webcam capture modal
+  • STUDENTLIST.md — List page (navigated to on success)
+  • STUDENTSROUTES.md — Backend POST endpoint
+
+
+Design Notes
+============
+  • State and City use  with cascading dependency (city disabled until state selected).
+  • Course is an independent dropdown (not dependent on state/city).
+  • Photo can be uploaded via file input or captured via CameraModal (webcam).
+  • Photo preview shown after selection with object URL.
+  • Cancel button returns to /read.
+
+
+
+----------------------------------------------------------------------
+SECTION 22: Update Student Page
+Source: pages/UPDATE_STUDENT.md
+----------------------------------------------------------------------
+
+UPDATE STUDENT — src/pages/updateStudent.jsx
+============================================
+
+
+Purpose
+=======
+Edit existing student records. Pre-populates the form with current student data, allows photo replacement (via camera or file), and cascading State/City dropdowns.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getStudent, updateStudent, getStates, getCities, getCourses
+../components/CameraModal  |  Webcam capture modal
+sweetalert2  |  Validation errors, confirm, success
+react-router-dom  |  useParams (id from URL), useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+form  |  object  |  {name, email, course, age, mobile, state, city}  |  Pre-filled form values
+states / cities / courses  |  array  |  []  |  Dropdown options
+photo  |  File/null  |  null  |  New photo file selected
+existingPhoto  |  string/null  |  null  |  Existing Base64 photo from DB
+isCameraOpen  |  boolean  |  false  |  Camera modal visibility
+
+
+Key Functions
+=============
+
+loadData() (useEffect on mount)
+  1. Fetches states, courses, and student record in parallel.
+  2. Pre-fills form fields from student data.
+  3. Loads existing photo (Base64) if present.
+  4. If student has a state, fetches cities for that state.
+
+handleStateChange(e)
+Same cascading logic as CreateStudent — resets city on state change.
+
+handleSubmit(e)
+Same validation as CreateStudent. Builds FormData and PUTs to updateStudent(id, payload).
+
+
+Photo Display Priority
+======================
+  1. If user selected a new photo → show preview.
+  2. Else if student has existing photo → show existing photo.
+  3. Else → show nothing.
+
+
+Design Notes
+============
+  • Reuses the same form layout as CreateStudent.
+  • Existing photo is kept unless explicitly replaced.
+  • All the same validation rules apply.
+
+
+
+----------------------------------------------------------------------
+SECTION 23: Student Details & Approval Page
+Source: pages/STUDENT_DETAILS.md
+----------------------------------------------------------------------
+
+STUDENT DETAILS — src/pages/StudentDesatis.jsx
+==============================================
+
+
+Purpose
+=======
+Complete student profile view with read-only fields, approval status timeline, and an interactive approval workflow panel (Approve / Reject / Return / Forward) for Teacher and Headmaster roles.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getStudent, approveStudent, getUsers
+sweetalert2  |  Confirm/error/success dialogs
+react-router-dom  |  useParams, useNavigate, useSearchParams
+
+
+Props
+=====
+None (reads :id from URL params).
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+student  |  object/null  |  null  |  Full student profile + approval metadata
+showDetails  |  boolean  |  false  |  Toggle approval timeline details
+decision  |  string  |  ""  |  Selected radio: Approved / Rejected / Returned / Forward
+remarks  |  string  |  ""  |  Remarks textarea value
+forwardUserId  |  string  |  ""  |  Target user ID for Forward decision
+users  |  array  |  []  |  List of users for Forward dropdown
+
+
+Derived State
+=============
+Variable  |  Source  |  Description
+
+role  |  JWT payload.role  |  Determines if approval panel is shown
+
+
+Key Functions
+=============
+
+handleApproveReject()
+  1. Validates decision, remarks, and (if Forward) forwardUserId are selected.
+  2. Shows SweetAlert2 confirmation dialog with dynamic icon/color based on decision type.
+  3. POSTs { decision, remarks, forwardUserId? } to approveStudent(id, payload).
+  4. On success: shows success toast, resets form, reloads student data.
+  5. On error: shows error alert.
+
+loadStudent()
+GETs student full profile with approval metadata.
+
+loadUsers()
+GETs all users for the Forward dropdown (only loaded for TEACHER/HEADMASTER roles).
+
+
+Approval Flow
+=============
+  Student List → Click "Details" button
+           │
+           ▼
+     /student-details/:id
+           │
+           ├── Read-only student profile (all fields)
+           ├── Decision history card (collapsible)
+           └── Approval panel (if role = TEACHER/HEADMASTER)
+                    │
+                    ├── Radio: Approve / Reject / Return / Forward
+                    ├── Forward user dropdown (if Forward selected)
+                    ├── Remarks textarea
+                    └── Submit button
+
+
+Decision Badge Colors
+=====================
+Status  |  Badge Class  |  Row CSS
+
+Approved  |  bg-success  |  text-success fw-bold
+Rejected  |  bg-danger  |  text-danger fw-bold
+Returned  |  bg-warning  |  text-warning fw-bold
+Forwarded / Forward  |  bg-info  |  text-info fw-bold
+Null / Pending  |  (no badge)  |  (no extra class) — displays "Pending"
+
+
+Related Docs
+============
+  • STUDENTLIST.md — Navigated from via Details button
+  • STUDENTSROUTES.md — Backend approval endpoint (POST /students/:id/approval)
+  • APP.md — Route definition for /student-details/:id
+
+
+Design Notes
+============
+  • If URL has ?action=approve and student.canApprove === 1, the page auto-scrolls to the approval section.
+  • Forward dropdown excludes the currently assigned approver.
+  • Collapsible decision history card with ▲/▼ toggle.
+  • Status field uses dynamic color classes based on latestrequeststatus.
+  • When latestrequeststatus is null (no approval flow started), the field displays "Pending".
+
+
+
+----------------------------------------------------------------------
+SECTION 24: Print Student ID Page
+Source: pages/PRINT_STUDENT_ID.md
+----------------------------------------------------------------------
+
+PRINT STUDENT ID — src/pages/PrintStudentId.jsx
+===============================================
+
+
+Purpose
+=======
+Printable student ID card page. Fetches student details and renders a formatted ID card with photo, student info, and QR code. Automatically triggers browser print dialog on load.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getStudent
+sweetalert2  |  Error alerts
+react-qr-code  |  QR code generation
+./PrintStudentId.css  |  Card and print-specific styles
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+student  |  object/null  |  null  |  Student data from API
+loading  |  boolean  |  true  |  Loading state
+
+
+Key Functions
+=============
+
+Auto-print
+On student data load, a 600ms timeout triggers window.print().
+
+QR Code
+The QR code encodes a multi-line string with: Name, ID, Course, Phone, City, State.
+
+
+ID Card Layout
+==============
+  ┌──────────────────────────────────────┐
+  │       Student Identity Card          │
+  ├──────────────────────────────────────┤
+  │ ┌────────┐  ┌─────────────────────┐  │
+  │ │ Photo  │  │ STUDENT NAME        │  │
+  │ │ (or 👤) │  │                     │  │
+  │ │        │  │ ID : STU001         │  │
+  │ │        │  │ Course : BCA        │  │
+  │ │        │  │ City : Delhi        │  │
+  │ │        │  │ State : Delhi       │  │
+  │ │        │  │ Phone : 98...       │  │
+  │ │        │  │ Email : a@b.com     │  │
+  │ └────────┘  └──────┐ ┌────────────┘  │
+  │                    │ │ QR CODE      │  │
+  │                    │ │ Scan For Info│  │
+  │                    │ └──────────────┘  │
+  └──────────────────────────────────────┘
+
+
+Print Styles (CSS)
+==================
+  • Page size: 85.6mm × 54mm (credit card size)
+  • All non-print elements hidden via .no-print
+  • Font sizes and spacing reduced proportionally for the compact layout
+
+
+Design Notes
+============
+  • The card has a 4px blue border with rounded corners.
+  • Photo box is 120×140px (screen), 16×20mm (print).
+  • QR code is 70px (screen), 12mm (print).
+  • Student ID display: prefers student_id, else studentId, else generates STU###.
+
+
+
+----------------------------------------------------------------------
+SECTION 25: Import Student Page
+Source: pages/IMPORT_STUDENT.md
+----------------------------------------------------------------------
+
+IMPORT STUDENT — src/pages/ImportStudent.jsx
+============================================
+
+
+Purpose
+=======
+Excel file upload page. Allows users to select an .xlsx/.xls file, download a sample template, and preview parsed data before bulk importing.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  previewStudentsExcel
+sweetalert2  |  Download confirmation, warnings, and errors
+react-router-dom  |  useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+file  |  File/null  |  null  |  Selected Excel file
+loading  |  boolean  |  false  |  Processing state
+
+
+Key Functions
+=============
+
+handleDownloadTemplate()
+Creates a temporary  tag to download /sample.xlsx from the public directory.
+
+handlePreview()
+  1. Validates file is selected.
+  2. Builds FormData with the file.
+  3. POSTs to previewStudentsExcel(formData).
+  4. On success → navigates to /import-preview with { state: { excelData } }.
+  5. On error → shows SweetAlert2 error.
+
+
+Flow
+====
+  Import Student Page
+    ├── 📥 Download Excel Template → public/sample.xlsx
+    ├── 📂 Select .xlsx file
+    └── 🔍 Preview Data → POST /upload/students/excel/preview
+                              │
+                              ▼
+                       /import-preview
+
+
+Design Notes
+============
+  • Accepts .xlsx and .xls file extensions.
+  • Shows spinner during processing.
+  • Cancel button returns to /read.
+
+
+
+----------------------------------------------------------------------
+SECTION 26: Import Preview Page
+Source: pages/IMPORT_PREVIEW.md
+----------------------------------------------------------------------
+
+IMPORT PREVIEW — src/pages/ImportPreview.jsx
+============================================
+
+
+Purpose
+=======
+Previews parsed Excel data before final import. Shows each record's validation status (Ready / Duplicate / Missing Email), allows removing individual records, and bulk imports valid records.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  importStudentsBulk
+sweetalert2  |  Confirm dialog, success/error
+react-router-dom  |  useLocation (receives excelData), useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+students  |  array  |  location.state?.excelData \  |  \  |  []  |  Parsed records with status
+loading  |  boolean  |  false  |  Import loading state
+
+
+Key Functions
+=============
+
+handleRemove(indexToRemove)
+Removes a record from the preview list by index.
+
+handleImport()
+  1. Filters records with status === 'Ready'.
+  2. If none → shows info alert.
+  3. Shows confirmation dialog.
+  4. POSTs to importStudentsBulk(importable).
+  5. On success → navigates to /read.
+
+
+Record Statuses & Visual Indicators
+===================================
+Status  |  Badge  |  Row Class  |  Description
+
+Ready  |  bg-info "Ready to Import"  |  table-info-subtle  |  Valid record, will be imported
+Duplicate  |  bg-danger "Duplicate Email"  |  table-danger  |  Email already exists in DB
+Missing Email  |  bg-warning "Missing Email"  |  table-warning  |  No email field in data
+
+
+Table Columns
+=============
+S.No, Name, Email, Course, State, City, Mobile, Age, Status (badge), Action (Remove button)
+
+
+Design Notes
+============
+  • Table scrollable with sticky header (maxHeight: 450px, overflowY: auto).
+  • Import button disabled when no "Ready" records remain.
+  • Back button returns to /import for file re-selection.
+
+
+
+======================================================================
+SECTION 27: State Master Page
+Source: pages/STATE_MASTER.md
+======================================================================
+
+STATE MASTER — src/pages/StateMaster.jsx
+========================================
+
+
+Purpose
+=======
+CRUD interface for managing states. Accessible to HEADMASTER role. Supports adding, editing, and deleting state names from the database.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getStates, createState, updateState, deleteState
+sweetalert2  |  Confirm delete, success/error alerts
+react-router-dom  |  useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+states  |  array  |  []  |  Full list of states
+stateName  |  string  |  ""  |  New state name input
+editingId  |  number/null  |  null  |  ID of state being edited
+editingName  |  string  |  ""  |  Edit input value
+
+
+Key Functions
+=============
+
+fetchStates()
+GETs all states from API and updates state list.
+
+handleAdd(e)
+POSTs { name: stateName } → creates new state → refreshes list → dispatches stateChanged event.
+
+handleUpdate(e)
+PUTs { name: editingName } to update existing state → refreshes.
+
+handleDelete(id, name)
+Shows SweetAlert2 warning (cities under this state will also be deleted) → DELETEs → refreshes.
+
+
+Layout
+======
+  • Left column (col-md-4): Add/Edit form with single text input and Save button.
+  • Right column (col-md-8): Table with S.No, State Name, Actions (Edit, Delete).
+
+
+Events
+======
+Dispatches stateChanged custom event so other components (e.g., CityMaster, CreateStudent) can react.
+
+
+RBAC
+====
+HEADMASTER only (no explicit check in this component — routing layer handles it).
+
+
+
+======================================================================
+SECTION 28: City Master Page
+Source: pages/CITY_MASTER.md
+======================================================================
+
+CITY MASTER — src/pages/CityMaster.jsx
+======================================
+
+
+Purpose
+=======
+CRUD interface for managing cities with state binding. Each city is linked to a state. Accessible to HEADMASTER role.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getCities, createCity, updateCity, deleteCity, getStates
+sweetalert2  |  Confirm delete, success/error alerts
+react-router-dom  |  useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+cities  |  array  |  []  |  Full list of cities
+states  |  array  |  []  |  States for dropdown
+selectedStateId  |  string  |  ""  |  Selected state ID for new city
+cityName  |  string  |  ""  |  New city name input
+editingId  |  number/null  |  null  |  ID of city being edited
+editingName  |  string  |  ""  |  Edit name input
+editingStateId  |  string  |  ""  |  Edit state ID
+
+
+Key Functions
+=============
+
+fetchCities(), fetchStates()
+Load data on mount.
+
+handleAdd(e)
+Validates state selected + name entered → POSTs { name, stateId } → refreshes → dispatches cityChanged.
+
+handleUpdate(e)
+PUTs { name, stateId } for editing city → refreshes.
+
+handleDelete(id, name)
+SweetAlert2 confirm → DELETEs → refreshes.
+
+
+Layout
+======
+  • Left column (col-md-4): Form with State dropdown + City name input + Save.
+  • Right column (col-md-8): Table with S.No, State, City Name, Actions (Edit, Delete).
+  • Input disabled until a state is selected.
+  • Displays city.stateName in the table for readability.
+
+
+RBAC
+====
+HEADMASTER only.
+
+
+
+======================================================================
+SECTION 29: Course Master Page
+Source: pages/COURSE_MASTER.md
+======================================================================
+
+COURSE MASTER — src/pages/CourseMaster.jsx
+==========================================
+
+
+Purpose
+=======
+CRUD interface for managing course catalog. Simple single-field entity management. Accessible to HEADMASTER role.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getCourses, createCourse, updateCourse, deleteCourse
+sweetalert2  |  Confirm delete, success/error alerts
+react-router-dom  |  useNavigate
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+courses  |  array  |  []  |  Full list of courses
+courseName  |  string  |  ""  |  New course name input
+editingId  |  number/null  |  null  |  ID of course being edited
+editingName  |  string  |  ""  |  Edit input value
+
+
+Key Functions
+=============
+
+fetchCourses()
+GETs all courses on mount.
+
+handleAdd(e)
+POSTs { name: courseName } → refreshes → dispatches courseChanged.
+
+handleUpdate(e)
+PUTs { name: editingName } → refreshes.
+
+handleDelete(id, name)
+SweetAlert2 confirm → DELETEs → refreshes.
+
+
+Layout
+======
+  • Left column (col-md-4): Add/Edit form with text input + Save.
+  • Right column (col-md-8): Table with S.No, Course Name, Actions (Edit, Delete).
+
+
+Events
+======
+Dispatches courseChanged custom event on add/update/delete.
+
+
+RBAC
+====
+HEADMASTER only.
+
+
+
+======================================================================
+SECTION 30: User Master Page
+Source: pages/USER_MASTER.md
+======================================================================
+
+USER MASTER — src/pages/UserMaster.jsx
+======================================
+
+
+Purpose
+=======
+System user management page. Allows HEADMASTER to create/edit/delete all users (Headmaster, Teacher, Student). TEACHER role can only create/edit/delete STUDENT users. Supports search/filter in the user list.
+
+
+Dependencies
+============
+Import  |  Usage
+
+../api  |  getUsers, createUser, updateUser, deleteUser
+sweetalert2  |  Confirm delete, success/error alerts
+react-router-dom  |  (none directly; used via parent)
+
+
+Component State
+===============
+Variable  |  Type  |  Default  |  Description
+
+users  |  array  |  []  |  Full user list from API
+searchQuery  |  string  |  ""  |  Search input for filtering
+isEditing  |  boolean  |  false  |  Whether in edit mode
+editId  |  number/null  |  null  |  ID of user being edited
+name / role / email / phone  |  string  |  Various  |  Form field values
+
+
+Derived State
+=============
+Variable  |  Source  |  Description
+
+currentRole / currentId  |  JWT payload  |  Controls modification permissions
+
+
+Key Functions
+=============
+
+handleSave(e)
+  1. Validates required fields (name, email, role).
+  2. If editing: PUTs to updateUser(editId, payload).
+  3. If creating: POSTs to createUser(payload).
+  4. Shows success alert, resets form, refreshes list.
+
+handleEdit(user)
+Populates form with user data and sets edit mode.
+
+handleDelete(id, userName)
+  1. Blocks self-deletion.
+  2. Shows confirmation dialog.
+  3. DELETEs via API.
+
+canModify(targetRole)
+Current Role  |  Can Modify
+
+HEADMASTER  |  All roles
+TEACHER  |  STUDENT only
+
+
+RBAC Matrix (in-component)
+==========================
+Action  |  HEADMASTER  |  TEACHER  |  STUDENT
+
+View list  |  ✅  |  ✅ (all)  |  ✅ (all)
+Create  |  ✅ (all roles)  |  ✅ (Student only)  |  ❌
+Edit  |  ✅ (all)  |  ✅ (Student only)  |  ❌
+Delete  |  ✅ (except self)  |  ✅ (Student, not self)  |  ❌
+
+
+Layout
+======
+  • Left column (col-lg-4): Add/Edit form with Name, Role (dropdown), Email, Phone, Save/Reset buttons.
+  • Right column (col-lg-8): Searchable table with Name, Role (color-coded badge), Email, Action buttons.
+
+
+Role Badge Colors
+=================
+Role  |  Badge Class
+
+Headmaster  |  bg-danger
+Teacher  |  bg-primary
+Student  |  bg-secondary
+
+
+Design Notes
+============
+  • Form toggles between "Add User" and "Edit User" mode.
+  • Reset button clears form fields.
+  • Search filters by Name, Role, or Email.
+  • When a TEACHER opens this page, they can only manage Student accounts.
+
+
+======================================================================
+END OF DOCUMENTATION
+Total: 30 documents
+======================================================================
