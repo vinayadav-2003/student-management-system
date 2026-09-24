@@ -30,7 +30,7 @@ router.post("/login", async (req, res) => {
     const result = await pool
       .request()
       .input("email", sql.NVarChar, email)
-      .query(`SELECT * FROM Users WHERE Email = @email`);
+      .query(`SELECT * FROM "Users" WHERE "Email" = @email`);
 
     if (result.recordset.length === 0) {
       return res.json({ success: false, error: "Invalid email or password." });
@@ -139,7 +139,7 @@ router.post("/verify-otp", async (req, res) => {
     const result = await pool
       .request()
       .input("email", sql.NVarChar, email)
-      .query(`SELECT * FROM Users WHERE Email = @email`);
+      .query(`SELECT * FROM "Users" WHERE "Email" = @email`);
 
     const user = result.recordset[0];
     if (!user) return res.json({ success: false, error: "User not found." });
@@ -180,7 +180,7 @@ router.post("/api/forgot-password", async (req, res) => {
     const result = await pool
       .request()
       .input("email", sql.NVarChar, email.trim())
-      .query(`SELECT * FROM Users WHERE Email = @email`);
+      .query(`SELECT * FROM "Users" WHERE "Email" = @email`);
 
     if (result.recordset.length === 0) {
       return res
@@ -202,7 +202,7 @@ router.post("/api/forgot-password", async (req, res) => {
       .input("id", sql.Int, user.Id || user.id)
       .input("tempPassword", sql.NVarChar, tempPassword)
       .query(
-        `UPDATE Users SET TempPassword = @tempPassword, IsTempPassword = 1 WHERE Id = @id`,
+        `UPDATE "Users" SET "TempPassword" = @tempPassword, "IsTempPassword" = TRUE WHERE "Id" = @id`,
       );
 
     console.log(`Generated temporary password for ${email}: ${tempPassword}`);
@@ -277,7 +277,7 @@ router.post("/api/change-password", authenticate, async (req, res) => {
     const result = await pool
       .request()
       .input("id", sql.Int, userId)
-      .query(`SELECT * FROM Users WHERE Id = @id`);
+      .query(`SELECT * FROM "Users" WHERE "Id" = @id`);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: "User not found." });
@@ -301,7 +301,7 @@ router.post("/api/change-password", authenticate, async (req, res) => {
       .input("id", sql.Int, userId)
       .input("newPassword", sql.NVarChar, newPassword)
       .query(
-        `UPDATE Users SET Password = @newPassword, TempPassword = NULL, IsTempPassword = 0, Force_Password = 'N' WHERE Id = @id`,
+        `UPDATE "Users" SET "Password" = @newPassword, "TempPassword" = NULL, "IsTempPassword" = FALSE, "Force_Password" = 'N' WHERE "Id" = @id`,
       );
 
     const userEmail = user.Email || user.email;

@@ -11,28 +11,30 @@ router.get("/api/dashboard/stats", authenticate, async (req, res) => {
 
     const [studentsRes, statesRes, citiesRes, coursesRes, statusRes, courseRes, recentRes] =
       await Promise.all([
-        pool.request().query("SELECT COUNT(*) AS count FROM Students"),
-        pool.request().query("SELECT COUNT(*) AS count FROM States"),
-        pool.request().query("SELECT COUNT(*) AS count FROM Cities"),
-        pool.request().query("SELECT COUNT(*) AS count FROM Courses"),
+        pool.request().query('SELECT COUNT(*) AS count FROM "Students"'),
+        pool.request().query('SELECT COUNT(*) AS count FROM "States"'),
+        pool.request().query('SELECT COUNT(*) AS count FROM "Cities"'),
+        pool.request().query('SELECT COUNT(*) AS count FROM "Courses"'),
         pool.request().query(`
           SELECT
             COALESCE(NULLIF(latest_request_status,''), 'Pending') AS status,
             COUNT(*) AS count
-          FROM Students
+          FROM "Students"
           GROUP BY COALESCE(NULLIF(latest_request_status,''), 'Pending')
         `),
         pool.request().query(`
-          SELECT TOP 6 course, COUNT(*) AS count
-          FROM Students
+          SELECT course, COUNT(*) AS count
+          FROM "Students"
           WHERE course IS NOT NULL AND course != ''
           GROUP BY course
           ORDER BY count DESC
+          LIMIT 6
         `),
         pool.request().query(`
-          SELECT TOP 5 id, name, email, course, state, city, created_at, createdDate, latest_request_status
-          FROM Students
+          SELECT id, name, email, course, state, city, "createdDate" AS created_at, "createdDate", latest_request_status
+          FROM "Students"
           ORDER BY id DESC
+          LIMIT 5
         `),
       ]);
 
@@ -58,7 +60,7 @@ router.get("/api/states", async (req, res) => {
     const pool = await getPool();
     const result = await pool
       .request()
-      .query("SELECT * FROM States ORDER BY name ASC");
+      .query('SELECT * FROM "States" ORDER BY name ASC');
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -76,7 +78,7 @@ router.post("/api/states", async (req, res) => {
     const check = await pool
       .request()
       .input("name", sql.NVarChar, name.trim())
-      .query("SELECT id FROM States WHERE LOWER(name) = LOWER(@name)");
+      .query('SELECT id FROM "States" WHERE LOWER(name) = LOWER(@name)');
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: "State already exists" });
     }
@@ -84,7 +86,7 @@ router.post("/api/states", async (req, res) => {
     const result = await pool
       .request()
       .input("name", sql.NVarChar, name.trim())
-      .query("INSERT INTO States (name) OUTPUT INSERTED.* VALUES (@name)");
+      .query("INSERT INTO \"States\" (name) VALUES (@name) RETURNING *");
     res.status(201).json(result.recordset[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -104,7 +106,7 @@ router.put("/api/states/:id", async (req, res) => {
       .input("name", sql.NVarChar, name.trim())
       .input("id", sql.Int, req.params.id)
       .query(
-        "SELECT id FROM States WHERE LOWER(name) = LOWER(@name) AND id != @id",
+        'SELECT id FROM "States" WHERE LOWER(name) = LOWER(@name) AND id != @id',
       );
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: "State already exists" });
@@ -114,7 +116,7 @@ router.put("/api/states/:id", async (req, res) => {
       .request()
       .input("id", sql.Int, req.params.id)
       .input("name", sql.NVarChar, name.trim())
-      .query("UPDATE States SET name=@name OUTPUT INSERTED.* WHERE id=@id");
+      .query("UPDATE \"States\" SET name=@name WHERE id=@id RETURNING *");
     if (!result.recordset[0])
       return res.status(404).json({ error: "State not found" });
     res.json(result.recordset[0]);
@@ -129,7 +131,7 @@ router.delete("/api/states/:id", async (req, res) => {
     const result = await pool
       .request()
       .input("id", sql.Int, req.params.id)
-      .query("DELETE FROM States OUTPUT DELETED.* WHERE id=@id");
+      .query("DELETE FROM \"States\" WHERE id=@id RETURNING *");
     if (!result.recordset[0])
       return res.status(404).json({ error: "State not found" });
     res.json({ message: "Deleted", state: result.recordset[0] });
@@ -144,13 +146,13 @@ router.get("/api/cities", async (req, res) => {
   try {
     const pool = await getPool();
     let query =
-      "SELECT Cities.*, States.name AS stateName FROM Cities LEFT JOIN States ON Cities.stateId = States.id ";
+      'SELECT "Cities".*, "States".name AS "stateName" FROM "Cities" LEFT JOIN "States" ON "Cities"."stateId" = "States".id ';
     const request = pool.request();
     if (stateId) {
       request.input("stateId", sql.Int, stateId);
-      query += "WHERE Cities.stateId = @stateId ";
+      query += 'WHERE "Cities"."stateId" = @stateId ';
     }
-    query += "ORDER BY Cities.name ASC";
+    query += 'ORDER BY "Cities".name ASC';
     const result = await request.query(query);
     res.json(result.recordset);
   } catch (err) {
@@ -174,7 +176,7 @@ router.post("/api/cities", async (req, res) => {
       .input("name", sql.NVarChar, name.trim())
       .input("stateId", sql.Int, stateId)
       .query(
-        "SELECT id FROM Cities WHERE LOWER(name) = LOWER(@name) AND stateId = @stateId",
+        'SELECT id FROM "Cities" WHERE LOWER(name) = LOWER(@name) AND "stateId" = @stateId',
       );
     if (check.recordset.length > 0) {
       return res
@@ -187,7 +189,7 @@ router.post("/api/cities", async (req, res) => {
       .input("name", sql.NVarChar, name.trim())
       .input("stateId", sql.Int, stateId)
       .query(
-        "INSERT INTO Cities (name, stateId) OUTPUT INSERTED.* VALUES (@name, @stateId)",
+        'INSERT INTO "Cities" (name, "stateId") VALUES (@name, @stateId) RETURNING *',
       );
     res.status(201).json(result.recordset[0]);
   } catch (err) {
@@ -212,7 +214,7 @@ router.put("/api/cities/:id", async (req, res) => {
       .input("stateId", sql.Int, stateId)
       .input("id", sql.Int, req.params.id)
       .query(
-        "SELECT id FROM Cities WHERE LOWER(name) = LOWER(@name) AND stateId = @stateId AND id != @id",
+        'SELECT id FROM "Cities" WHERE LOWER(name) = LOWER(@name) AND "stateId" = @stateId AND id != @id',
       );
     if (check.recordset.length > 0) {
       return res
@@ -226,7 +228,7 @@ router.put("/api/cities/:id", async (req, res) => {
       .input("name", sql.NVarChar, name.trim())
       .input("stateId", sql.Int, stateId)
       .query(
-        "UPDATE Cities SET name=@name, stateId=@stateId OUTPUT INSERTED.* WHERE id=@id",
+        'UPDATE "Cities" SET name=@name, "stateId"=@stateId WHERE id=@id RETURNING *',
       );
     if (!result.recordset[0])
       return res.status(404).json({ error: "City not found" });
@@ -242,7 +244,7 @@ router.delete("/api/cities/:id", async (req, res) => {
     const result = await pool
       .request()
       .input("id", sql.Int, req.params.id)
-      .query("DELETE FROM Cities OUTPUT DELETED.* WHERE id=@id");
+      .query('DELETE FROM "Cities" WHERE id=@id RETURNING *');
     if (!result.recordset[0])
       return res.status(404).json({ error: "City not found" });
     res.json({ message: "Deleted", city: result.recordset[0] });
@@ -257,7 +259,7 @@ router.get("/api/courses", async (req, res) => {
     const pool = await getPool();
     const result = await pool
       .request()
-      .query("SELECT * FROM Courses ORDER BY name ASC");
+      .query('SELECT * FROM "Courses" ORDER BY name ASC');
     res.json(result.recordset);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -275,7 +277,7 @@ router.post("/api/courses", async (req, res) => {
     const check = await pool
       .request()
       .input("name", sql.NVarChar, name.trim())
-      .query("SELECT id FROM Courses WHERE LOWER(name) = LOWER(@name)");
+      .query('SELECT id FROM "Courses" WHERE LOWER(name) = LOWER(@name)');
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: "Course already exists" });
     }
@@ -283,7 +285,7 @@ router.post("/api/courses", async (req, res) => {
     const result = await pool
       .request()
       .input("name", sql.NVarChar, name.trim())
-      .query("INSERT INTO Courses (name) OUTPUT INSERTED.* VALUES (@name)");
+      .query('INSERT INTO "Courses" (name) VALUES (@name) RETURNING *');
     res.status(201).json(result.recordset[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -303,7 +305,7 @@ router.put("/api/courses/:id", async (req, res) => {
       .input("name", sql.NVarChar, name.trim())
       .input("id", sql.Int, req.params.id)
       .query(
-        "SELECT id FROM Courses WHERE LOWER(name) = LOWER(@name) AND id != @id",
+        'SELECT id FROM "Courses" WHERE LOWER(name) = LOWER(@name) AND id != @id',
       );
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: "Course already exists" });
@@ -313,7 +315,7 @@ router.put("/api/courses/:id", async (req, res) => {
       .request()
       .input("id", sql.Int, req.params.id)
       .input("name", sql.NVarChar, name.trim())
-      .query("UPDATE Courses SET name=@name OUTPUT INSERTED.* WHERE id=@id");
+      .query('UPDATE "Courses" SET name=@name WHERE id=@id RETURNING *');
     if (!result.recordset[0])
       return res.status(404).json({ error: "Course not found" });
     res.json(result.recordset[0]);
@@ -328,7 +330,7 @@ router.delete("/api/courses/:id", async (req, res) => {
     const result = await pool
       .request()
       .input("id", sql.Int, req.params.id)
-      .query("DELETE FROM Courses OUTPUT DELETED.* WHERE id=@id");
+      .query('DELETE FROM "Courses" WHERE id=@id RETURNING *');
     if (!result.recordset[0])
       return res.status(404).json({ error: "Course not found" });
     res.json({ message: "Deleted", course: result.recordset[0] });
