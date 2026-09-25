@@ -1,5 +1,8 @@
 # ---- Build stage: install deps and build the React frontend ----
-FROM node:20-alpine AS build
+# Use the full node:20 image (not alpine) because it ships Python and the
+# build tools (gcc, g++, make) required to compile the msnodesqlv8 native
+# SQL Server module.
+FROM node:20 AS build
 
 WORKDIR /app
 
@@ -8,15 +11,18 @@ COPY package.json package-lock.json* ./
 RUN npm install
 
 # Install backend dependencies
+# --force bypasses npm engine-version warnings from mssql/msnodesqlv8
+# (which expect Node 22+) while still allowing the native build to run
+# against the available Python/build toolchain.
 COPY server/package.json server/package-lock.json* ./server/
-RUN npm install --prefix server
+RUN npm install --prefix server --force
 
 # Copy the rest of the source and build the frontend
 COPY . .
 RUN npm run build
 
 # ---- Runtime stage: only what's needed to run the backend ----
-FROM node:20-alpine
+FROM node:20
 
 WORKDIR /app
 
