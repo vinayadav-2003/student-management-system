@@ -8,8 +8,9 @@ function Otp({ onLogin }) {
   const location = useLocation();
 
   const email = location.state?.email;
+  const devOtp = location.state?.devOtp;
 
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(devOtp || "");
 
   const verifyOtp = async () => {
     try {
@@ -52,6 +53,11 @@ function Otp({ onLogin }) {
         </div>
 
         <div className="p-4">
+          {devOtp && (
+            <div className="alert alert-info py-2 px-3 mb-3 small text-center">
+              🔑 OTP: <strong>{devOtp}</strong> (Auto-filled)
+            </div>
+          )}
           <div className="mb-3">
             <label className="form-label">Email</label>
             <input

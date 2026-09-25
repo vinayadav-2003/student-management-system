@@ -17,11 +17,11 @@ async function initDb() {
       connectionString: process.env.DATABASE_URL,
       ssl:
         process.env.DATABASE_URL &&
-        (process.env.DATABASE_URL.includes('railway') ||
-          process.env.DATABASE_URL.includes('render') ||
-          process.env.DATABASE_URL.includes('supabase') ||
-          process.env.DATABASE_URL.includes('neon') ||
-          process.env.NODE_ENV === 'production')
+          (process.env.DATABASE_URL.includes('railway') ||
+            process.env.DATABASE_URL.includes('render') ||
+            process.env.DATABASE_URL.includes('supabase') ||
+            process.env.DATABASE_URL.includes('neon') ||
+            process.env.NODE_ENV === 'production')
           ? { rejectUnauthorized: false }
           : false,
     });
@@ -147,8 +147,8 @@ async function initDb() {
     const statesCount = await rawPool.query('SELECT COUNT(*) AS total FROM "States"');
     if (parseInt(statesCount.rows[0].total) === 0) {
       const defaults = [
-        { state: 'Bihar',     cities: ['Sasaram', 'Patna', 'Gaya'] },
-        { state: 'UP',        cities: ['Noida', 'Lucknow', 'Kanpur'] },
+        { state: 'Bihar', cities: ['Sasaram', 'Patna', 'Gaya'] },
+        { state: 'UP', cities: ['Noida', 'Lucknow', 'Kanpur'] },
         { state: 'Karnataka', cities: ['Bengaluru', 'Mysore'] },
       ];
       for (const item of defaults) {

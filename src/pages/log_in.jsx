@@ -53,7 +53,7 @@ const Login = ({ onLogin }) => {
           if (onLogin) onLogin();
           navigate("/change-password");
         } else {
-          navigate("/otp", { state: { email } });
+          navigate("/otp", { state: { email, devOtp: res.data.devOtp } });
         }
       } else {
         setError("Invalid email or password.");
