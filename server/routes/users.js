@@ -107,49 +107,47 @@ router.post("/api/users", authenticate, async (req, res) => {
     }
 
     const appUrl = process.env.APP_URL || "http://localhost:5173";
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email.trim(),
-        subject: "🎒 Account Created - Student Management System",
-        html: `
-          <div style="font-family: Arial, sans-serif; background: #f4f6ff; padding: 30px;">
-            <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(102,126,234,0.15);">
-              <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 28px; text-align: center;">
-                <div style="font-size: 40px;">🎒</div>
-                <h2 style="color: #fff; margin: 8px 0 4px; font-size: 20px;">Welcome to SMS</h2>
-                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Your account has been created</p>
-              </div>
-              <div style="padding: 32px;">
-                <p style="color: #444; font-size: 15px;">Hello <strong>${name.trim()}</strong>,</p>
-                <p style="color: #666; font-size: 14px;">A Headmaster has created an account for you on the Student Management System.</p>
-                
-                <div style="background: #f7f9fc; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #eef2f5;">
-                  <div style="margin-bottom: 10px; font-size: 14px; color: #555;">
-                    <strong>Email:</strong> ${email.trim()}
-                  </div>
-                  <div style="font-size: 14px; color: #555;">
-                    <strong>Temporary Password:</strong> <code style="background: #eef2f5; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-size: 14px; color: #667eea;">${userPassword}</code>
-                  </div>
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email.trim(),
+      subject: "🎒 Account Created - Student Management System",
+      html: `
+        <div style="font-family: Arial, sans-serif; background: #f4f6ff; padding: 30px;">
+          <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(102,126,234,0.15);">
+            <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 28px; text-align: center;">
+              <div style="font-size: 40px;">🎒</div>
+              <h2 style="color: #fff; margin: 8px 0 4px; font-size: 20px;">Welcome to SMS</h2>
+              <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Your account has been created</p>
+            </div>
+            <div style="padding: 32px;">
+              <p style="color: #444; font-size: 15px;">Hello <strong>${name.trim()}</strong>,</p>
+              <p style="color: #666; font-size: 14px;">A Headmaster has created an account for you on the Student Management System.</p>
+              
+              <div style="background: #f7f9fc; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #eef2f5;">
+                <div style="margin-bottom: 10px; font-size: 14px; color: #555;">
+                  <strong>Email:</strong> ${email.trim()}
                 </div>
-
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${appUrl}" style="background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
-                    Go to Login
-                  </a>
+                <div style="font-size: 14px; color: #555;">
+                  <strong>Temporary Password:</strong> <code style="background: #eef2f5; padding: 3px 6px; border-radius: 4px; font-family: monospace; font-size: 14px; color: #667eea;">${userPassword}</code>
                 </div>
-
-                <p style="color: #c81e1e; font-size: 13px; font-weight: 600; text-align: center;">
-                  ⚠️ You will be prompted to change your password immediately upon first login.
-                </p>
               </div>
+
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${appUrl}" style="background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
+                  Go to Login
+                </a>
+              </div>
+
+              <p style="color: #c81e1e; font-size: 13px; font-weight: 600; text-align: center;">
+                ⚠️ You will be prompted to change your password immediately upon first login.
+              </p>
             </div>
           </div>
-        `,
-      });
-    } catch (mailErr) {
-      console.error("New user welcome email failed to send:", mailErr);
-    }
+        </div>
+      `,
+    }).catch((mailErr) => {
+      console.warn("New user welcome email skipped:", mailErr.message);
+    });
 
     res
       .status(201)

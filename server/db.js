@@ -54,10 +54,36 @@ if (isPostgres) {
   function translateQuery(mssqlQuery, paramNames) {
     let pgQuery = mssqlQuery;
 
-    pgQuery = pgQuery.replace(/OUTPUT\s+INSERTED\.\*/gi, 'RETURNING *');
-    pgQuery = pgQuery.replace(/OUTPUT\s+DELETED\.\*/gi, 'RETURNING *');
-    pgQuery = pgQuery.replace(/OUTPUT\s+INSERTED\.(\w+)/gi, 'RETURNING $1');
+    // 1. Extract OUTPUT INSERTED / DELETED to append as trailing RETURNING clause
+    let returningClause = '';
+    pgQuery = pgQuery.replace(/OUTPUT\s+INSERTED\.\*/gi, () => {
+      returningClause = ' RETURNING *';
+      return '';
+    });
+    pgQuery = pgQuery.replace(/OUTPUT\s+DELETED\.\*/gi, () => {
+      returningClause = ' RETURNING *';
+      return '';
+    });
+    pgQuery = pgQuery.replace(/OUTPUT\s+INSERTED\.(\w+)/gi, (match, col) => {
+      returningClause = ` RETURNING "${col}"`;
+      return '';
+    });
 
+    // 2. Map @paramName to $1, $2, ... BEFORE column quoting so params like @createdBy are not quoted
+    const paramMap = {};
+    paramNames.forEach((name, i) => {
+      paramMap[name.toLowerCase()] = i + 1;
+    });
+
+    pgQuery = pgQuery.replace(/@(\w+)/g, (match, name) => {
+      const idx = paramMap[name.toLowerCase()];
+      if (idx !== undefined) {
+        return `$${idx}`;
+      }
+      return match;
+    });
+
+    // 3. TOP N translation
     pgQuery = pgQuery.replace(/\bTOP\s+(\d+)\b/gi, 'LIMIT $1');
     pgQuery = pgQuery.replace(
       /SELECT\s+LIMIT\s+(\d+)\s+([\s\S]*?)\s+FROM\s+/gi,
@@ -68,17 +94,18 @@ if (isPostgres) {
       (_m, sel) => `${sel} `,
     );
 
+    // 4. MSSQL functions
     pgQuery = pgQuery.replace(/GETUTCDATE\(\)/gi, 'NOW()');
     pgQuery = pgQuery.replace(/IF\s+NOT\s+EXISTS[\s\S]*?END/gi, '');
 
-    // Replace table names with double quotes for PostgreSQL case-sensitivity
+    // 5. Replace table names with double quotes for PostgreSQL case-sensitivity
     pgQuery = pgQuery.replace(/(?<!["\w])Users(?!["\w])/g, '"Users"');
     pgQuery = pgQuery.replace(/(?<!["\w])Students(?!["\w])/g, '"Students"');
     pgQuery = pgQuery.replace(/(?<!["\w])States(?!["\w])/g, '"States"');
     pgQuery = pgQuery.replace(/(?<!["\w])Cities(?!["\w])/g, '"Cities"');
     pgQuery = pgQuery.replace(/(?<!["\w])Courses(?!["\w])/g, '"Courses"');
 
-    // Replace Users column names with double quotes
+    // 6. Replace Users column names with double quotes
     const userColumns = [
       'Id', 'Name', 'Role', 'Email', 'Phone', 'Password',
       'Force_Password', 'CreatedBy', 'CreatedDate', 'UpdatedBy',
@@ -94,25 +121,22 @@ if (isPostgres) {
     pgQuery = pgQuery.replace(/(?<!["\w])createdBy(?!["\w])/g, '"createdBy"');
     pgQuery = pgQuery.replace(/(?<!["\w])createdDate(?!["\w])/g, '"createdDate"');
 
-    const paramMap = {};
-    paramNames.forEach((name, i) => {
-      paramMap[name.toLowerCase()] = i + 1;
-    });
+    // 7. Boolean literal conversions
+    pgQuery = pgQuery.replace(/,\s*0\s*\)/g, ', FALSE)');
+    pgQuery = pgQuery.replace(/,\s*1\s*\)/g, ', TRUE)');
 
-    pgQuery = pgQuery.replace(/@(\w+)/g, (match, name) => {
-      const idx = paramMap[name.toLowerCase()];
-      if (idx !== undefined) {
-        return `$${idx}`;
-      }
-      return match;
-    });
-
+    // 8. Fix LIMIT position in SELECT
     const limitInSelectMatch = pgQuery.match(
       /^(\s*SELECT\s+)(LIMIT\s+\d+\s+)([\s\S]+?)(FROM\s+[\s\S]+)$/i,
     );
     if (limitInSelectMatch) {
       const limitClause = limitInSelectMatch[2].trim();
       pgQuery = `${limitInSelectMatch[1]}${limitInSelectMatch[3]}${limitInSelectMatch[4]} ${limitClause}`;
+    }
+
+    // 9. Append returningClause at the end
+    if (returningClause && !pgQuery.toLowerCase().includes('returning')) {
+      pgQuery = pgQuery.trim() + returningClause;
     }
 
     return pgQuery;
