@@ -86,7 +86,7 @@ router.post("/api/users", authenticate, async (req, res) => {
       .input("password", sql.NVarChar, userPassword)
       .input("forcePassword", sql.NVarChar, forceVal)
       .input("createdBy", sql.Int, creatorId)
-      .input("createdDate", sql.DateTime, new Date()).query(`
+      .query(`
         INSERT INTO Users (Name, Role, Email, Phone, Password, Force_Password, CreatedBy, CreatedDate, IsTempPassword)
         OUTPUT INSERTED.Id
         VALUES (@name, @role, @email, @phone, @password, @forcePassword, @createdBy, GETUTCDATE(), 0)

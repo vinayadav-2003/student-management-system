@@ -51,7 +51,7 @@ if (isPostgres) {
     console.error('PostgreSQL Pool Notice:', err.message);
   });
 
-  function translateQuery(mssqlQuery, paramNames) {
+  function translateQuery(mssqlQuery, params = []) {
     let pgQuery = mssqlQuery;
 
     // 1. Extract OUTPUT INSERTED / DELETED to append as trailing RETURNING clause
@@ -69,13 +69,27 @@ if (isPostgres) {
       return '';
     });
 
-    // 2. Map @paramName to $1, $2, ... BEFORE column quoting so params like @createdBy are not quoted
+    // 2. Identify only the @paramName parameters that ACTUALLY exist in the query
     const paramMap = {};
-    paramNames.forEach((name, i) => {
-      paramMap[name.toLowerCase()] = i + 1;
-    });
+    const boundValues = [];
+    let paramIndex = 1;
 
-    pgQuery = pgQuery.replace(/@(\w+)/g, (match, name) => {
+    const matches = pgQuery.match(/@([a-zA-Z_]\w*)/g) || [];
+    for (const m of matches) {
+      const pName = m.slice(1).toLowerCase();
+      if (!paramMap[pName]) {
+        paramMap[pName] = paramIndex++;
+        const pObj = Array.isArray(params)
+          ? params.find((p) => {
+              const name = typeof p === 'object' && p !== null ? p.name : String(p);
+              return name && name.toLowerCase() === pName;
+            })
+          : null;
+        boundValues.push(pObj && typeof pObj === 'object' && pObj.value !== undefined ? pObj.value : null);
+      }
+    }
+
+    pgQuery = pgQuery.replace(/@([a-zA-Z_]\w*)/g, (match, name) => {
       const idx = paramMap[name.toLowerCase()];
       if (idx !== undefined) {
         return `$${idx}`;
@@ -186,7 +200,7 @@ if (isPostgres) {
       pgQuery = pgQuery.trim().replace(/;+\s*$/, '') + returningClause;
     }
 
-    return pgQuery;
+    return { pgSql: pgQuery, boundValues };
   }
 
   function createRequest() {
@@ -214,16 +228,10 @@ if (isPostgres) {
           return { recordset: [], rowsAffected: [0] };
         }
 
-        const pgSql = translateQuery(mssqlSql, paramNames);
-        const values = paramNames.map((name) => {
-          const p = params.find(
-            (param) => param.name.toLowerCase() === name.toLowerCase(),
-          );
-          return p ? p.value : null;
-        });
+        const { pgSql, boundValues } = translateQuery(mssqlSql, params);
 
         try {
-          const result = await pool.query(pgSql, values);
+          const result = await pool.query(pgSql, boundValues);
           return {
             recordset: normalizeRows(result.rows),
             rowsAffected: [result.rowCount],
@@ -232,7 +240,7 @@ if (isPostgres) {
           console.error('PostgreSQL Query Error:');
           console.error('  Original SQL:', mssqlSql.trim().substring(0, 200));
           console.error('  Translated SQL:', pgSql.trim().substring(0, 200));
-          console.error('  Params:', values);
+          console.error('  Params:', boundValues);
           console.error('  Error:', err.message);
           throw err;
         }
@@ -248,8 +256,8 @@ if (isPostgres) {
       if (!process.env.DATABASE_URL) {
         return { recordset: [], rowsAffected: [0] };
       }
-      const pgSql = translateQuery(queryString, []);
-      const result = await pool.query(pgSql, values);
+      const { pgSql } = translateQuery(queryString, []);
+      const result = await pool.query(pgSql, values || []);
       return {
         recordset: normalizeRows(result.rows),
         rowsAffected: [result.rowCount],
