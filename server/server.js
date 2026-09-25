@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const { initDb } = require("./dbInit");
@@ -18,22 +20,21 @@ app.use(studentRoutes);
 app.use(userRoutes);
 app.use(masterRoutes);
 
-const path = require("path");
-const fs = require("fs");
-
-// Detect client build directory (either ../dist or ./dist)
-const clientBuildPath = fs.existsSync(path.join(__dirname, "../dist"))
+// Detect client build directory (server/public for Docker, ../dist or ./dist for local/standard builds)
+const clientBuildPath = fs.existsSync(path.join(__dirname, "public"))
+  ? path.join(__dirname, "public")
+  : fs.existsSync(path.join(__dirname, "../dist"))
   ? path.join(__dirname, "../dist")
   : fs.existsSync(path.join(__dirname, "dist"))
   ? path.join(__dirname, "dist")
   : null;
 
 if (clientBuildPath) {
-  // Serve static assets from the React dist folder
+  // Serve static assets from the React build
   app.use(express.static(clientBuildPath));
 
-  // SPA fallback: send index.html for all non-API GET routes
-  app.get("*", (req, res) => {
+  // SPA fallback: any request that isn't an API/auth route should return index.html
+  app.get(/^(?!\/api|\/login|\/verify-otp).*/, (req, res) => {
     res.sendFile(path.join(clientBuildPath, "index.html"));
   });
 } else {
@@ -42,7 +43,7 @@ if (clientBuildPath) {
   });
 }
 
-const PORT = process.env.APP_PORT || 5000;
+const PORT = process.env.PORT || process.env.APP_PORT || 8080;
 app.listen(PORT, async () => {
   console.log(`API running on http://localhost:${PORT}`);
   await initDb();
