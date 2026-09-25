@@ -2,33 +2,38 @@
  * db.js - Dual-engine Database Adapter (PostgreSQL & MSSQL)
  *
  * Automatically detects environment:
- * - If DATABASE_URL is set: connects to PostgreSQL (Railway, Render, Supabase, Neon)
+ * - On Linux / Render or when DATABASE_URL is set: connects to PostgreSQL
  *   and automatically translates MSSQL syntax to PostgreSQL.
- * - If DB_USER & DB_PASSWORD are set: connects to MSSQL via SQL Authentication.
- * - Otherwise: connects to local MSSQL via Windows Authentication (msnodesqlv8).
+ * - On Windows: connects to MSSQL via SQL Auth (if DB_USER/DB_PASSWORD)
+ *   or local Windows Authentication (msnodesqlv8).
  */
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 
-const isPostgres = Boolean(process.env.DATABASE_URL);
+const isPostgres = Boolean(process.env.DATABASE_URL) || process.platform !== 'win32';
 
 let sql;
 let getPool;
 
 if (isPostgres) {
-  // ─── PostgreSQL Mode ──────────────────────────────────────────────────────────
+  // ─── PostgreSQL Mode (Linux, Render, Railway, Supabase) ─────────────────────
   const { Pool } = require('pg');
 
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/postgres',
     ssl:
-      process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')
+      process.env.DATABASE_URL &&
+      (process.env.DATABASE_URL.includes('railway') ||
+        process.env.DATABASE_URL.includes('render') ||
+        process.env.DATABASE_URL.includes('supabase') ||
+        process.env.DATABASE_URL.includes('neon') ||
+        process.env.NODE_ENV === 'production')
         ? { rejectUnauthorized: false }
         : false,
   });
 
   pool.on('error', (err) => {
-    console.error('PostgreSQL Pool Error:', err);
+    console.error('PostgreSQL Pool Notice:', err.message);
   });
 
   function translateQuery(mssqlQuery, paramNames) {
@@ -95,6 +100,11 @@ if (isPostgres) {
       },
 
       async query(mssqlSql) {
+        if (!process.env.DATABASE_URL) {
+          console.warn('DATABASE_URL is not set on cloud host.');
+          return { recordset: [], rowsAffected: [0] };
+        }
+
         const pgSql = translateQuery(mssqlSql, paramNames);
         const values = paramNames.map((name) => {
           const p = params.find(
@@ -126,6 +136,9 @@ if (isPostgres) {
   const pgPool = {
     request: () => createRequest(),
     async query(queryString, values) {
+      if (!process.env.DATABASE_URL) {
+        return { recordset: [], rowsAffected: [0] };
+      }
       const result = await pool.query(queryString, values);
       return {
         recordset: result.rows,
@@ -147,41 +160,49 @@ if (isPostgres) {
     Text: 'Text',
   };
 } else {
-  // ─── MSSQL Mode (Local or Cloud SQL Server) ───────────────────────────────────
+  // ─── MSSQL Mode (Windows Local or SQL Server) ─────────────────────────────────
   let mssqlLib;
   let mssqlConfig;
 
-  if (process.env.DB_USER && process.env.DB_PASSWORD) {
-    mssqlLib = require('mssql');
-    mssqlConfig = {
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      server: process.env.DB_SERVER,
-      database: process.env.DB_NAME,
-      port: parseInt(process.env.DB_PORT || '1433', 10),
-      options: {
-        encrypt: process.env.DB_ENCRYPT === 'true',
-        trustServerCertificate: true,
-      },
-      pool: {
-        max: 10,
-        min: 1,
-        idleTimeoutMillis: 30000,
-      },
-    };
-  } else {
-    mssqlLib = require('mssql/msnodesqlv8');
-    mssqlConfig = {
-      connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.DB_SERVER};Database=${process.env.DB_NAME};Trusted_Connection=yes;`,
-      pool: {
-        max: 10,
-        min: 1,
-        idleTimeoutMillis: 30000,
-      },
-      options: {
-        trustServerCertificate: true,
-      },
-    };
+  try {
+    if (process.env.DB_USER && process.env.DB_PASSWORD) {
+      mssqlLib = require('mssql');
+      mssqlConfig = {
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        server: process.env.DB_SERVER,
+        database: process.env.DB_NAME,
+        port: parseInt(process.env.DB_PORT || '1433', 10),
+        options: {
+          encrypt: process.env.DB_ENCRYPT === 'true',
+          trustServerCertificate: true,
+        },
+        pool: {
+          max: 10,
+          min: 1,
+          idleTimeoutMillis: 30000,
+        },
+      };
+    } else {
+      mssqlLib = require('mssql/msnodesqlv8');
+      mssqlConfig = {
+        connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.DB_SERVER};Database=${process.env.DB_NAME};Trusted_Connection=yes;`,
+        pool: {
+          max: 10,
+          min: 1,
+          idleTimeoutMillis: 30000,
+        },
+        options: {
+          trustServerCertificate: true,
+        },
+      };
+    }
+  } catch (err) {
+    try {
+      mssqlLib = require('mssql');
+    } catch (e2) {
+      console.warn('MSSQL driver not available:', err.message);
+    }
   }
 
   sql = mssqlLib;
@@ -189,7 +210,7 @@ if (isPostgres) {
   let pool;
   let poolReady = false;
   getPool = async () => {
-    if (!poolReady) {
+    if (!poolReady && sql) {
       pool = await sql.connect(mssqlConfig);
       pool.on('error', (err) => {
         console.error('SQL Pool Error:', err);

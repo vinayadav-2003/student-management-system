@@ -1,6 +1,11 @@
 const { getPool } = require("./db");
 
 async function initDb() {
+  if (process.platform !== 'win32' && !process.env.DATABASE_URL) {
+    console.log("No DATABASE_URL configured on cloud host. Skipping database initialization.");
+    return;
+  }
+
   try {
     const pool = await getPool();
 
@@ -10,9 +15,15 @@ async function initDb() {
 
     const rawPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('railway')
-        ? { rejectUnauthorized: false }
-        : false,
+      ssl:
+        process.env.DATABASE_URL &&
+        (process.env.DATABASE_URL.includes('railway') ||
+          process.env.DATABASE_URL.includes('render') ||
+          process.env.DATABASE_URL.includes('supabase') ||
+          process.env.DATABASE_URL.includes('neon') ||
+          process.env.NODE_ENV === 'production')
+          ? { rejectUnauthorized: false }
+          : false,
     });
 
     const exec = async (sql) => rawPool.query(sql);

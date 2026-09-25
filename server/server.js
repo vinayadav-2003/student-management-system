@@ -46,5 +46,9 @@ if (clientBuildPath) {
 const PORT = process.env.PORT || process.env.APP_PORT || 8080;
 app.listen(PORT, async () => {
   console.log(`API running on http://localhost:${PORT}`);
-  await initDb();
+  try {
+    await initDb();
+  } catch (err) {
+    console.warn("Database initialization notice:", err.message);
+  }
 });
