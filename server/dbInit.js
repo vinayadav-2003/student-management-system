@@ -189,6 +189,17 @@ async function initDb() {
       console.log('Seeded matrix');
     }
 
+    // ── Create lowercase compatibility views ──────────────────────────────────
+    try {
+      await exec(`CREATE OR REPLACE VIEW users AS SELECT * FROM "Users";`);
+      await exec(`CREATE OR REPLACE VIEW students AS SELECT * FROM "Students";`);
+      await exec(`CREATE OR REPLACE VIEW states AS SELECT * FROM "States";`);
+      await exec(`CREATE OR REPLACE VIEW cities AS SELECT * FROM "Cities";`);
+      await exec(`CREATE OR REPLACE VIEW courses AS SELECT * FROM "Courses";`);
+    } catch (vErr) {
+      console.warn('View creation notice:', vErr.message);
+    }
+
     await rawPool.end();
     console.log('✅ Database initialization completed (PostgreSQL)');
   } catch (err) {

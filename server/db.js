@@ -15,6 +15,21 @@ const isPostgres = Boolean(process.env.DATABASE_URL) || process.platform !== 'wi
 let sql;
 let getPool;
 
+function normalizeRows(rows) {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const normalized = { ...row };
+    for (const key of Object.keys(row)) {
+      const pascal = key.charAt(0).toUpperCase() + key.slice(1);
+      const lower = key.toLowerCase();
+      if (!(pascal in normalized)) normalized[pascal] = row[key];
+      if (!(lower in normalized)) normalized[lower] = row[key];
+    }
+    return normalized;
+  });
+}
+
 if (isPostgres) {
   // ─── PostgreSQL Mode (Linux, Render, Railway, Supabase) ─────────────────────
   const { Pool } = require('pg');
@@ -55,6 +70,29 @@ if (isPostgres) {
 
     pgQuery = pgQuery.replace(/GETUTCDATE\(\)/gi, 'NOW()');
     pgQuery = pgQuery.replace(/IF\s+NOT\s+EXISTS[\s\S]*?END/gi, '');
+
+    // Replace table names with double quotes for PostgreSQL case-sensitivity
+    pgQuery = pgQuery.replace(/(?<!["\w])Users(?!["\w])/g, '"Users"');
+    pgQuery = pgQuery.replace(/(?<!["\w])Students(?!["\w])/g, '"Students"');
+    pgQuery = pgQuery.replace(/(?<!["\w])States(?!["\w])/g, '"States"');
+    pgQuery = pgQuery.replace(/(?<!["\w])Cities(?!["\w])/g, '"Cities"');
+    pgQuery = pgQuery.replace(/(?<!["\w])Courses(?!["\w])/g, '"Courses"');
+
+    // Replace Users column names with double quotes
+    const userColumns = [
+      'Id', 'Name', 'Role', 'Email', 'Phone', 'Password',
+      'Force_Password', 'CreatedBy', 'CreatedDate', 'UpdatedBy',
+      'UpdatedDate', 'TempPassword', 'IsTempPassword'
+    ];
+    for (const col of userColumns) {
+      const reg = new RegExp(`(?<!["\\w])${col}(?!["\\w])`, 'g');
+      pgQuery = pgQuery.replace(reg, `"${col}"`);
+    }
+
+    // Special columns in other tables
+    pgQuery = pgQuery.replace(/(?<!["\w])stateId(?!["\w])/g, '"stateId"');
+    pgQuery = pgQuery.replace(/(?<!["\w])createdBy(?!["\w])/g, '"createdBy"');
+    pgQuery = pgQuery.replace(/(?<!["\w])createdDate(?!["\w])/g, '"createdDate"');
 
     const paramMap = {};
     paramNames.forEach((name, i) => {
@@ -116,7 +154,7 @@ if (isPostgres) {
         try {
           const result = await pool.query(pgSql, values);
           return {
-            recordset: result.rows,
+            recordset: normalizeRows(result.rows),
             rowsAffected: [result.rowCount],
           };
         } catch (err) {
@@ -139,9 +177,10 @@ if (isPostgres) {
       if (!process.env.DATABASE_URL) {
         return { recordset: [], rowsAffected: [0] };
       }
-      const result = await pool.query(queryString, values);
+      const pgSql = translateQuery(queryString, []);
+      const result = await pool.query(pgSql, values);
       return {
-        recordset: result.rows,
+        recordset: normalizeRows(result.rows),
         rowsAffected: [result.rowCount],
       };
     },
