@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 const { initDb } = require("./dbInit");
@@ -18,11 +20,24 @@ app.use(studentRoutes);
 app.use(userRoutes);
 app.use(masterRoutes);
 
-app.get("/", (req, res) => {
-  res.json({ status: "OK", message: "Student Management System API running" });
-});
+// Serve the built React frontend (produced by `npm run build` at the repo
+// root and copied into server/public during the Docker build).
+const publicDir = path.join(__dirname, "public");
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
 
-const PORT = process.env.APP_PORT || 5000;
+  // SPA fallback: any request that isn't an API/auth route should return
+  // index.html so client-side routing (react-router-dom) can take over.
+  app.get(/^(?!\/api|\/login|\/verify-otp).*/, (req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+} else {
+  app.get("/", (req, res) => {
+    res.json({ status: "OK", message: "Student Management System API running" });
+  });
+}
+
+const PORT = process.env.PORT || process.env.APP_PORT || 8080;
 app.listen(PORT, async () => {
   console.log(`API running on http://localhost:${PORT}`);
   await initDb();
