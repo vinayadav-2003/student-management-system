@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+server/node_modules
 # dist (allowed for deployment)
 *.local
 
@@ -24,6 +25,7 @@ node_modules
 
 # ── Environment / Secrets ─────────────────────────
 .env
+server/.env
 .env.*
 !.env.example
 
