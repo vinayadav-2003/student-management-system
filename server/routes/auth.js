@@ -1,6 +1,10 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 const { sql, getPool } = require("../db");
 const authenticate = require("../middleware/auth");
 
@@ -8,12 +12,13 @@ const router = express.Router();
 const otpStore = new Map();
 
 const transporter = nodemailer.createTransport({
-
-
-  service: "gmail",
-  connectionTimeout: 4000,
-  greetingTimeout: 4000,
-  socketTimeout: 4000,
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // STARTTLS
+  family: 4,     // Force IPv4 only (prevents ENETUNREACH on Render)
+  connectionTimeout: 8000,
+  greetingTimeout: 8000,
+  socketTimeout: 8000,
   auth: {
     user: process.env.EMAIL_USER
       ? process.env.EMAIL_USER.trim().replace(/\r/g, "")
@@ -22,18 +27,23 @@ const transporter = nodemailer.createTransport({
       ? process.env.EMAIL_PASS.trim().replace(/\r/g, "").replace(/\s+/g, "")
       : "",
   },
+  tls: {
+    rejectUnauthorized: false,
+  },
 });
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
+  const cleanEmail = (email || "").trim().toLowerCase();
+  const cleanPassword = (password || "").trim();
 
   try {
     const pool = await getPool();
 
     const result = await pool
       .request()
-      .input("email", sql.NVarChar, email)
-      .query(`SELECT * FROM "Users" WHERE "Email" = @email`);
+      .input("email", sql.NVarChar, cleanEmail)
+      .query(`SELECT * FROM "Users" WHERE LOWER("Email") = @email`);
 
     if (result.recordset.length === 0) {
       return res.json({ success: false, error: "Invalid email or password." });
@@ -41,16 +51,19 @@ router.post("/login", async (req, res) => {
 
     const user = result.recordset[0];
 
+    const dbPassword = (user.Password || user.password || "").trim();
+    const dbTempPassword = (user.TempPassword || user.temppassword || "").trim();
+
     let isTempLogin = false;
-    if (user.Password !== password) {
-      if (user.IsTempPassword && user.TempPassword === password) {
-        isTempLogin = true;
-      } else {
-        return res.json({
-          success: false,
-          error: "Invalid email or password.",
-        });
-      }
+    if (dbPassword === cleanPassword) {
+      isTempLogin = false;
+    } else if (dbTempPassword && dbTempPassword === cleanPassword) {
+      isTempLogin = true;
+    } else {
+      return res.json({
+        success: false,
+        error: "Invalid email or password.",
+      });
     }
 
     if (isTempLogin) {
@@ -60,7 +73,7 @@ router.post("/login", async (req, res) => {
         {
           id: userId,
           email: userEmail,
-          role: user.Role,
+          role: user.Role || user.role,
           requiresPasswordChange: true,
         },
         process.env.JWT_SECRET,

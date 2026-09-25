@@ -17,6 +17,23 @@ let getPool;
 
 function normalizeRows(rows) {
   if (!Array.isArray(rows)) return rows;
+  const aliasMap = {
+    id: 'Id',
+    name: 'Name',
+    role: 'Role',
+    email: 'Email',
+    phone: 'Phone',
+    password: 'Password',
+    force_password: 'Force_Password',
+    forcepassword: 'Force_Password',
+    createdby: 'CreatedBy',
+    createddate: 'CreatedDate',
+    updatedby: 'UpdatedBy',
+    updateddate: 'UpdatedDate',
+    temppassword: 'TempPassword',
+    istemppassword: 'IsTempPassword',
+  };
+
   return rows.map((row) => {
     if (!row || typeof row !== 'object') return row;
     const normalized = { ...row };
@@ -25,6 +42,10 @@ function normalizeRows(rows) {
       const lower = key.toLowerCase();
       if (!(pascal in normalized)) normalized[pascal] = row[key];
       if (!(lower in normalized)) normalized[lower] = row[key];
+      const alias = aliasMap[lower];
+      if (alias && !(alias in normalized)) {
+        normalized[alias] = row[key];
+      }
     }
     return normalized;
   });

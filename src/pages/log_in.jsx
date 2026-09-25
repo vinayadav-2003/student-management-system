@@ -78,7 +78,11 @@ const Login = ({ onLogin }) => {
     try {
       const res = await axios.post("/api/forgot-password", { email: forgotEmail });
       if (res.data.success) {
-        setForgotSuccess(res.data.message || "Temporary password sent! Check your inbox.");
+        let msg = res.data.message || "Temporary password sent! Check your inbox.";
+        if (res.data.tempPassword) {
+          msg += ` Temporary Password: ${res.data.tempPassword}`;
+        }
+        setForgotSuccess(msg);
         setForgotEmail("");
       } else {
         setError(res.data.error || "Failed to send temporary password.");
