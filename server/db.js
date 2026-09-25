@@ -83,29 +83,85 @@ if (isPostgres) {
       return match;
     });
 
-    // 3. TOP N translation
-    pgQuery = pgQuery.replace(/\bTOP\s+(\d+)\b/gi, 'LIMIT $1');
+    // 3. ISNULL -> COALESCE
+    pgQuery = pgQuery.replace(/\bISNULL\s*\(/gi, 'COALESCE(');
+
+    // 4. OUTER APPLY (...) AS alias -> LEFT JOIN LATERAL (...) AS alias ON TRUE
     pgQuery = pgQuery.replace(
-      /SELECT\s+LIMIT\s+(\d+)\s+([\s\S]*?)\s+FROM\s+/gi,
-      (match, limit, cols) => `SELECT ${cols} FROM `,
-    );
-    pgQuery = pgQuery.replace(
-      /^(SELECT)\s+LIMIT\s+(\d+)\s+/gi,
-      (_m, sel) => `${sel} `,
+      /\bOUTER\s+APPLY\s*\(\s*([\s\S]*?)\s*\)\s*AS\s+(\w+)/gi,
+      (match, subquery, alias) => {
+        let lateralQuery = subquery.trim();
+        let limit = '';
+        lateralQuery = lateralQuery.replace(/\bSELECT\s+TOP\s+(\d+)\b/i, (m, num) => {
+          limit = ` LIMIT ${num}`;
+          return 'SELECT';
+        });
+        if (limit && !lateralQuery.toLowerCase().includes('limit')) {
+          lateralQuery += limit;
+        }
+        return `LEFT JOIN LATERAL (${lateralQuery}) AS ${alias} ON TRUE`;
+      }
     );
 
-    // 4. MSSQL functions
+    // 5. Handle balanced scalar subqueries like ( SELECT TOP 1 ... )
+    let searchPos = 0;
+    while (true) {
+      const match = pgQuery.slice(searchPos).match(/\(\s*SELECT\s+TOP\s+(\d+)\s+/i);
+      if (!match) break;
+
+      const subqueryStart = searchPos + match.index;
+      const limitNum = match[1];
+
+      let openCount = 0;
+      let subqueryEnd = -1;
+      for (let i = subqueryStart; i < pgQuery.length; i++) {
+        if (pgQuery[i] === '(') openCount++;
+        else if (pgQuery[i] === ')') {
+          openCount--;
+          if (openCount === 0) {
+            subqueryEnd = i;
+            break;
+          }
+        }
+      }
+
+      if (subqueryEnd === -1) break;
+
+      const contentInside = pgQuery.slice(subqueryStart + 1, subqueryEnd);
+      const bodyWithoutTop = contentInside.replace(/^\s*SELECT\s+TOP\s+\d+\s+/i, '');
+      let newSubquery = `SELECT ${bodyWithoutTop.trim()}`;
+      if (!newSubquery.toLowerCase().includes('limit')) {
+        newSubquery += ` LIMIT ${limitNum}`;
+      }
+
+      pgQuery = pgQuery.slice(0, subqueryStart) + `(${newSubquery})` + pgQuery.slice(subqueryEnd + 1);
+      searchPos = subqueryStart + newSubquery.length + 2;
+    }
+
+    // 6. Handle top-level SELECT TOP (\d+)
+    pgQuery = pgQuery.replace(
+      /^\s*SELECT\s+TOP\s+(\d+)\s+([\s\S]*)$/i,
+      (match, num, rest) => {
+        let r = rest.trim().replace(/;+\s*$/, '');
+        if (!r.toLowerCase().includes('limit')) {
+          r += ` LIMIT ${num}`;
+        }
+        return `SELECT ${r}`;
+      }
+    );
+
+    // 7. MSSQL functions
     pgQuery = pgQuery.replace(/GETUTCDATE\(\)/gi, 'NOW()');
     pgQuery = pgQuery.replace(/IF\s+NOT\s+EXISTS[\s\S]*?END/gi, '');
 
-    // 5. Replace table names with double quotes for PostgreSQL case-sensitivity
+    // 8. Replace table names with double quotes for PostgreSQL case-sensitivity
     pgQuery = pgQuery.replace(/(?<!["\w])Users(?!["\w])/g, '"Users"');
     pgQuery = pgQuery.replace(/(?<!["\w])Students(?!["\w])/g, '"Students"');
     pgQuery = pgQuery.replace(/(?<!["\w])States(?!["\w])/g, '"States"');
     pgQuery = pgQuery.replace(/(?<!["\w])Cities(?!["\w])/g, '"Cities"');
     pgQuery = pgQuery.replace(/(?<!["\w])Courses(?!["\w])/g, '"Courses"');
 
-    // 6. Replace Users column names with double quotes
+    // 9. Replace Users column names with double quotes
     const userColumns = [
       'Id', 'Name', 'Role', 'Email', 'Phone', 'Password',
       'Force_Password', 'CreatedBy', 'CreatedDate', 'UpdatedBy',
@@ -121,22 +177,13 @@ if (isPostgres) {
     pgQuery = pgQuery.replace(/(?<!["\w])createdBy(?!["\w])/g, '"createdBy"');
     pgQuery = pgQuery.replace(/(?<!["\w])createdDate(?!["\w])/g, '"createdDate"');
 
-    // 7. Boolean literal conversions
+    // 10. Boolean literal conversions
     pgQuery = pgQuery.replace(/,\s*0\s*\)/g, ', FALSE)');
     pgQuery = pgQuery.replace(/,\s*1\s*\)/g, ', TRUE)');
 
-    // 8. Fix LIMIT position in SELECT
-    const limitInSelectMatch = pgQuery.match(
-      /^(\s*SELECT\s+)(LIMIT\s+\d+\s+)([\s\S]+?)(FROM\s+[\s\S]+)$/i,
-    );
-    if (limitInSelectMatch) {
-      const limitClause = limitInSelectMatch[2].trim();
-      pgQuery = `${limitInSelectMatch[1]}${limitInSelectMatch[3]}${limitInSelectMatch[4]} ${limitClause}`;
-    }
-
-    // 9. Append returningClause at the end
+    // 11. Append returningClause at the end (stripping any trailing semicolons first)
     if (returningClause && !pgQuery.toLowerCase().includes('returning')) {
-      pgQuery = pgQuery.trim() + returningClause;
+      pgQuery = pgQuery.trim().replace(/;+\s*$/, '') + returningClause;
     }
 
     return pgQuery;

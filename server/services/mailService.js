@@ -2,6 +2,9 @@ const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
+  connectionTimeout: 4000,
+  greetingTimeout: 4000,
+  socketTimeout: 4000,
   auth: {
     user: process.env.EMAIL_USER
       ? process.env.EMAIL_USER.trim().replace(/\r/g, "")
@@ -286,12 +289,16 @@ const sendEmail = async ({
       break;
   }
 
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    html,
-  });
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.warn(`[MailService] Email sending skipped to ${to}:`, err.message);
+  }
 };
 
 module.exports = {

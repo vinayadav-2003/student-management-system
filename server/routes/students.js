@@ -575,32 +575,6 @@ router.get("/api/students/aggregates", authenticate, async (req, res) => {
 });
 
 
-router.get("/api/dashboard/stats", async (req, res) => {
-  try {
-    const pool = await getPool();
-    const students = await pool
-      .request()
-      .query("SELECT COUNT(*) AS total FROM Students");
-    const states = await pool
-      .request()
-      .query("SELECT COUNT(*) AS total FROM States");
-    const cities = await pool
-      .request()
-      .query("SELECT COUNT(*) AS total FROM Cities");
-    const courses = await pool
-      .request()
-      .query("SELECT COUNT(*) AS total FROM Courses");
-
-    res.json({
-      students: students.recordset[0].total,
-      states: states.recordset[0].total,
-      cities: cities.recordset[0].total,
-      courses: courses.recordset[0].total,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 router.get("/api/students/check-email", async (req, res) => {
   const { email } = req.query;
@@ -670,7 +644,7 @@ router.get("/api/students", authenticate, async (req, res) => {
               WHEN sf.status = 'N' AND lastClosed.closed_id IS NOT NULL AND (lastClosed.closed_decision = 'Forward' OR lastClosed.closed_decision IS NULL) THEN 'Forwarded'
               WHEN sf.status = 'N' AND lastClosed.closed_id IS NOT NULL AND lastClosed.closed_decision = 'Returned' THEN 'Returned'
               WHEN sf.status = 'N' THEN 'Pending'
-              ELSE ISNULL(sf.decision, 'Pending')
+              ELSE COALESCE(sf.decision, 'Pending')
           END AS latest_request_status,
           sf.remarks,
           sf.level
@@ -731,40 +705,6 @@ router.get("/api/students", authenticate, async (req, res) => {
   }
 });
 
-router.get("/api/students/aggregates", authenticate, async (req, res) => {
-  try {
-    const pool = await getPool();
-
-    const statesRes = await pool.request().query(`
-      SELECT s.name AS label, COUNT(st.id) AS value 
-      FROM States s
-      LEFT JOIN Students st ON LOWER(st.state) = LOWER(s.name)
-      GROUP BY s.name
-    `);
-
-    const citiesRes = await pool.request().query(`
-      SELECT c.name AS label, COUNT(st.id) AS value 
-      FROM Cities c
-      LEFT JOIN Students st ON LOWER(st.city) = LOWER(c.name)
-      GROUP BY c.name
-    `);
-
-    const coursesRes = await pool.request().query(`
-      SELECT co.name AS label, COUNT(st.id) AS value 
-      FROM Courses co
-      LEFT JOIN Students st ON LOWER(st.course) = LOWER(co.name)
-      GROUP BY co.name
-    `);
-
-    res.json({
-      states: statesRes.recordset,
-      cities: citiesRes.recordset,
-      courses: coursesRes.recordset,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 router.get("/api/students/:id", authenticate, async (req, res) => {
@@ -779,7 +719,7 @@ router.get("/api/students/:id", authenticate, async (req, res) => {
         WHEN sf.status = 'N' AND lastClosed.closed_id IS NOT NULL AND (lastClosed.closed_decision = 'Forward' OR lastClosed.closed_decision IS NULL) THEN 'Forwarded'
         WHEN sf.status = 'N' AND lastClosed.closed_id IS NOT NULL AND lastClosed.closed_decision = 'Returned' THEN 'Returned'
         WHEN sf.status = 'N' THEN 'Pending'
-        ELSE ISNULL(sf.decision, 'Pending')
+        ELSE COALESCE(sf.decision, 'Pending')
     END AS latest_request_status,
     sf.remarks,
     sf.level AS pending_level,
@@ -787,9 +727,9 @@ router.get("/api/students/:id", authenticate, async (req, res) => {
     sf.user_id AS pending_assigned_user_id,
 
     (
-        SELECT TOP 1 U.Name
+        SELECT U.Name
         FROM Users U
-        WHERE U.Id = ISNULL(sf.user_id, sf.desired_user_id)
+        WHERE U.Id = COALESCE(sf.user_id, sf.desired_user_id)
     ) AS pendingWithName,
 
     CASE

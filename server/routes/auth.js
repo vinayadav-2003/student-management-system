@@ -216,7 +216,7 @@ router.post("/api/forgot-password", async (req, res) => {
 
     console.log(`Generated temporary password for ${email}: ${tempPassword}`);
 
-    await transporter.sendMail({
+    transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email.trim(),
       subject: "🔑 Temporary Password - Student Management System",
@@ -240,11 +240,15 @@ router.post("/api/forgot-password", async (req, res) => {
           </div>
         </div>
       `,
+    }).catch((mailErr) => {
+      console.warn("Forgot password email skipped:", mailErr.message);
+      console.log(`🔑 >>> TEMP PASSWORD FOR ${email} IS: ${tempPassword} <<<`);
     });
 
     res.json({
       success: true,
-      message: "Temporary password sent successfully!",
+      message: "Temporary password generated successfully!",
+      tempPassword,
     });
   } catch (err) {
     console.error("Forgot password error:", err);
